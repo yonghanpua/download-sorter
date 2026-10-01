@@ -16,12 +16,13 @@ A Python utility that automatically organizes your Downloads folder by sorting f
 | Folder | Extensions |
 |---|---|
 | Documents | pdf, doc/docx, xls/xlsx, ppt/pptx, txt, csv, md, epub, and more |
-| Images | jpg, png, gif, bmp, svg, webp, heic, psd, and more |
+| Images | jpg, png, gif, bmp, svg, webp, avif, heic, psd, and more |
 | Media | mp3, mp4, avi, mkv, mov, wav, flac, and more |
 | Archives | zip, rar, 7z, tar, gz, iso, and more |
 | Installers | exe, msi, msix, appx |
 | Code | py, js, ts, html, css, json, sql, and more |
 | Fonts | ttf, otf, woff, woff2 |
+| 3D Prints | 3mf, stl, step, obj, gcode |
 
 Files with unrecognized extensions are left in place.
 

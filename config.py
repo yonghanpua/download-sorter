@@ -18,7 +18,7 @@ CATEGORIES = {
     "Images": {
         ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".svg", ".webp",
         ".ico", ".tiff", ".tif", ".heic", ".heif", ".raw", ".psd",
-        ".ai",
+        ".ai", ".avif", ".jfif", ".jxl",
     },
     "Media": {
         ".mp3", ".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv",
