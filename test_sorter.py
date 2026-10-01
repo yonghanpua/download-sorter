@@ -1,3 +1,6 @@
+import pytest
+
+import db
 import sorter
 from sorter import (
     get_category,
@@ -10,7 +13,14 @@ from sorter import (
     sort_file,
     sweep,
     undo,
+    undo_selected,
 )
+
+
+@pytest.fixture(autouse=True)
+def _temp_db(tmp_path, monkeypatch):
+    monkeypatch.setattr(db, "DB_PATH", tmp_path / "test.db")
+    db.init_db()
 
 
 # --- is_ignored ---
@@ -178,12 +188,10 @@ class TestGetClientSubcategory:
         assert get_client_subcategory(tmp_path / "AKSS_manual.pdf") == "02. Documentation"
 
     def test_keyword_wins_over_extension(self, tmp_path):
-        # "dev" keyword should route to Development even though .pdf maps to Commercial
         result = get_client_subcategory(tmp_path / "AKSS_dev_report.pdf")
         assert result == "03. Development"
 
     def test_extension_fallback(self, tmp_path):
-        # No keyword match, falls back to .pdf → Commercial
         result = get_client_subcategory(tmp_path / "AKSS_summary.pdf")
         assert result == "01. Commercial"
 
@@ -263,7 +271,6 @@ class TestSortFile:
         f = tmp_path / "AKSS_dev_notes.pdf"
         f.write_text("test")
         result = sort_file(f, tmp_path)
-        # "dev" keyword → Development, not Commercial (pdf extension)
         assert result == tmp_path / "AKSS" / "03. Development" / "AKSS_dev_notes.pdf"
 
     def test_client_no_subcategory(self, tmp_path):
@@ -277,6 +284,14 @@ class TestSortFile:
         f.write_text("test")
         sort_file(f, tmp_path)
         assert (tmp_path / "AKSS" / "01. Commercial").is_dir()
+
+    def test_records_to_database(self, tmp_path):
+        f = tmp_path / "report.pdf"
+        f.write_text("test")
+        sort_file(f, tmp_path)
+        records = db.get_pending_undos()
+        assert len(records) == 1
+        assert records[0]["category"] == "Documents"
 
 
 # --- sweep ---
@@ -311,17 +326,17 @@ class TestSweep:
         assert (tmp_path / "data.xyz").exists()
         assert (tmp_path / "download.crdownload").exists()
 
+    def test_records_sweep_event(self, tmp_path):
+        (tmp_path / "photo.jpg").write_text("img")
+        sweep(tmp_path)
+        stats = db.get_stats()
+        assert stats["total_sweeps"] == 1
+
 
 # --- undo ---
 
 class TestUndo:
-    def _with_history(self, tmp_path, monkeypatch):
-        history_file = tmp_path / ".move_history.jsonl"
-        monkeypatch.setattr(sorter, "HISTORY_FILE", history_file)
-        return history_file
-
-    def test_undo_last_move(self, tmp_path, monkeypatch):
-        self._with_history(tmp_path, monkeypatch)
+    def test_undo_last_move(self, tmp_path):
         f = tmp_path / "report.pdf"
         f.write_text("test")
         sort_file(f, tmp_path)
@@ -333,8 +348,7 @@ class TestUndo:
         assert f.exists()
         assert not (tmp_path / "Documents" / "report.pdf").exists()
 
-    def test_undo_multiple(self, tmp_path, monkeypatch):
-        self._with_history(tmp_path, monkeypatch)
+    def test_undo_multiple(self, tmp_path):
         f1 = tmp_path / "photo.jpg"
         f2 = tmp_path / "report.pdf"
         f1.write_text("img")
@@ -347,8 +361,7 @@ class TestUndo:
         assert f1.exists()
         assert f2.exists()
 
-    def test_undo_all(self, tmp_path, monkeypatch):
-        self._with_history(tmp_path, monkeypatch)
+    def test_undo_all(self, tmp_path):
         for name in ["a.pdf", "b.jpg", "c.exe"]:
             f = tmp_path / name
             f.write_text("test")
@@ -360,17 +373,61 @@ class TestUndo:
         assert (tmp_path / "b.jpg").exists()
         assert (tmp_path / "c.exe").exists()
 
-    def test_undo_empty_history(self, tmp_path, monkeypatch):
-        self._with_history(tmp_path, monkeypatch)
+    def test_undo_empty_history(self, tmp_path):
         assert undo(1) == 0
 
-    def test_undo_missing_file(self, tmp_path, monkeypatch):
-        self._with_history(tmp_path, monkeypatch)
+    def test_undo_missing_file(self, tmp_path):
         f = tmp_path / "report.pdf"
         f.write_text("test")
         sort_file(f, tmp_path)
-        # Delete the sorted file before undoing
         (tmp_path / "Documents" / "report.pdf").unlink()
 
         undone = undo(1)
         assert undone == 0
+
+    def test_undo_marks_record_undone(self, tmp_path):
+        f = tmp_path / "report.pdf"
+        f.write_text("test")
+        sort_file(f, tmp_path)
+        assert len(db.get_pending_undos()) == 1
+
+        undo(1)
+        assert len(db.get_pending_undos()) == 0
+
+
+# --- undo_selected ---
+
+class TestUndoSelected:
+    def test_undo_specific_files(self, tmp_path):
+        f1 = tmp_path / "a.pdf"
+        f2 = tmp_path / "b.jpg"
+        f3 = tmp_path / "c.exe"
+        f1.write_text("a")
+        f2.write_text("b")
+        f3.write_text("c")
+        sort_file(f1, tmp_path)
+        sort_file(f2, tmp_path)
+        sort_file(f3, tmp_path)
+
+        records = db.get_pending_undos()
+        mid_id = records[1]["id"]
+        undone = undo_selected([mid_id])
+        assert undone == 1
+        assert len(db.get_pending_undos()) == 2
+
+    def test_skip_already_undone(self, tmp_path):
+        f = tmp_path / "report.pdf"
+        f.write_text("test")
+        sort_file(f, tmp_path)
+        records = db.get_pending_undos()
+        move_id = records[0]["id"]
+        undo_selected([move_id])
+        assert undo_selected([move_id]) == 0
+
+    def test_skip_missing_file(self, tmp_path):
+        f = tmp_path / "report.pdf"
+        f.write_text("test")
+        sort_file(f, tmp_path)
+        (tmp_path / "Documents" / "report.pdf").unlink()
+        records = db.get_pending_undos()
+        assert undo_selected([records[0]["id"]]) == 0
