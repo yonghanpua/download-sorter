@@ -4,3 +4,4 @@ logs/
 *.pyc
 .move_history.jsonl
 .pytest_cache/
+dashboard.html
