@@ -49,3 +49,41 @@ EXTENSION_MAP: dict[str, str] = {}
 for _category, _extensions in CATEGORIES.items():
     for _ext in _extensions:
         EXTENSION_MAP[_ext] = _category
+
+# --- Client-based sorting ---
+# Maps client folder name → list of keywords to match in filenames (case-insensitive)
+CLIENTS: dict[str, list[str]] = {
+    "AKSS": ["AKSS", "AKS24"],
+    # "COKE": ["COKE", "CK-"],
+    # "Wilmar": ["Wilmar", "WIL"],
+}
+
+# Sub-categories within each client folder
+# Keywords are checked first (case-insensitive), then extension as fallback
+CLIENT_SUBCATEGORIES: dict[str, dict] = {
+    "01. Commercial": {
+        "keywords": ["commercial", "proposal", "quote", "invoice", "contract", "tender"],
+        "extensions": {".pdf", ".doc", ".docx", ".ppt", ".pptx", ".xlsx", ".xls"},
+    },
+    "02. Documentation": {
+        "keywords": ["documentation", "manual", "guide", "spec", "requirement", "sop"],
+        "extensions": {".txt", ".md", ".csv", ".rtf", ".epub"},
+    },
+    "03. Development": {
+        "keywords": ["dev", "source", "code", "deploy", "build", "release"],
+        "extensions": {
+            ".py", ".js", ".ts", ".sql", ".json", ".xml", ".yaml", ".yml",
+            ".html", ".css", ".zip", ".7z", ".rar", ".tar", ".gz",
+        },
+    },
+}
+
+CLIENT_KEYWORD_MAP: dict[str, str] = {}
+for _subcategory, _rules in CLIENT_SUBCATEGORIES.items():
+    for _kw in _rules.get("keywords", []):
+        CLIENT_KEYWORD_MAP[_kw.lower()] = _subcategory
+
+CLIENT_EXTENSION_MAP: dict[str, str] = {}
+for _subcategory, _rules in CLIENT_SUBCATEGORIES.items():
+    for _ext in _rules.get("extensions", set()):
+        CLIENT_EXTENSION_MAP[_ext] = _subcategory

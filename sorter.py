@@ -2,7 +2,14 @@ import logging
 import shutil
 from pathlib import Path
 
-from config import DOWNLOADS_FOLDER, EXTENSION_MAP, TEMP_EXTENSIONS
+from config import (
+    CLIENTS,
+    CLIENT_EXTENSION_MAP,
+    CLIENT_KEYWORD_MAP,
+    DOWNLOADS_FOLDER,
+    EXTENSION_MAP,
+    TEMP_EXTENSIONS,
+)
 
 log = logging.getLogger("fileSorter")
 
@@ -13,6 +20,23 @@ def is_temp_file(path: Path) -> bool:
 
 def get_category(path: Path) -> str | None:
     return EXTENSION_MAP.get(path.suffix.lower())
+
+
+def get_client(path: Path) -> str | None:
+    name_lower = path.name.lower()
+    for client, keywords in CLIENTS.items():
+        for keyword in keywords:
+            if keyword.lower() in name_lower:
+                return client
+    return None
+
+
+def get_client_subcategory(path: Path) -> str | None:
+    name_lower = path.stem.lower()
+    for keyword, subcategory in CLIENT_KEYWORD_MAP.items():
+        if keyword in name_lower:
+            return subcategory
+    return CLIENT_EXTENSION_MAP.get(path.suffix.lower())
 
 
 def resolve_duplicate(dest: Path) -> Path:
@@ -37,12 +61,20 @@ def sort_file(path: Path, base: Path = DOWNLOADS_FOLDER) -> Path | None:
     if path.name.startswith("."):
         return None
 
-    category = get_category(path)
-    if category is None:
-        return None
+    client = get_client(path)
+    if client:
+        subcategory = get_client_subcategory(path)
+        if subcategory:
+            dest_dir = base / client / subcategory
+        else:
+            dest_dir = base / client
+    else:
+        category = get_category(path)
+        if category is None:
+            return None
+        dest_dir = base / category
 
-    dest_dir = base / category
-    dest_dir.mkdir(exist_ok=True)
+    dest_dir.mkdir(parents=True, exist_ok=True)
 
     dest = resolve_duplicate(dest_dir / path.name)
     try:

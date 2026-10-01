@@ -9,6 +9,7 @@ A Python utility that automatically organizes your Downloads folder by sorting f
 - **Smart download handling** — ignores incomplete downloads (`.crdownload`, `.part`, `.tmp`) until finished
 - **Duplicate safety** — auto-renames with `(1)`, `(2)`, etc. instead of overwriting
 - **Daily logs** — organized in `logs/yyyy/mm/dd.log` for easy tracking
+- **Client sorting** — route files to client folders with sub-categories based on filename keywords
 - **Background operation** — runs silently on startup via Windows Task Scheduler
 
 ## Default Categories
@@ -90,6 +91,54 @@ Remove both tasks:
 Unregister-ScheduledTask -TaskName 'FileSorter-Watch' -Confirm:$false
 Unregister-ScheduledTask -TaskName 'FileSorter-Sweep' -Confirm:$false
 ```
+
+## Client Sorting
+
+Files whose names contain a client keyword are sorted into client folders with sub-categories instead of the default extension-based categories.
+
+Configure clients in `config.py`:
+
+```python
+CLIENTS = {
+    "AKSS": ["AKSS", "AKS24"],       # keywords to match (case-insensitive)
+    "COKE": ["COKE", "CK-"],
+    "Wilmar": ["Wilmar", "WIL"],
+}
+```
+
+Sub-categories are matched by **keyword first, then file extension** as fallback. Configure both in `CLIENT_SUBCATEGORIES` in `config.py`:
+
+```python
+CLIENT_SUBCATEGORIES = {
+    "01. Commercial": {
+        "keywords": ["commercial", "proposal", "quote", "invoice"],
+        "extensions": {".pdf", ".docx", ".pptx", ".xlsx"},
+    },
+    "02. Documentation": {
+        "keywords": ["documentation", "manual", "guide", "spec"],
+        "extensions": {".txt", ".md", ".csv"},
+    },
+    "03. Development": {
+        "keywords": ["dev", "source", "code", "deploy", "build"],
+        "extensions": {".py", ".js", ".sql", ".zip", ".json"},
+    },
+}
+```
+
+Keyword match wins over extension. For example, `AKSS_dev_report.pdf` goes to `03. Development` (keyword "dev") even though `.pdf` would normally map to `01. Commercial`.
+
+```
+Downloads/
+  AKSS/
+    01. Commercial/     ← AKSS_proposal.txt (keyword), AKSS_summary.pdf (extension)
+    02. Documentation/  ← AKSS_manual.pdf (keyword), AKSS_notes.txt (extension)
+    03. Development/    ← AKSS_dev_report.pdf (keyword), AKSS_app.zip (extension)
+    AKSS_data.xyz       ← no keyword or extension match → client root
+  Documents/            ← non-client files sort normally
+  Images/
+```
+
+Files matching a client but not any sub-category go to the client's root folder.
 
 ## Customization
 
