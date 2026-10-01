@@ -1,11 +1,10 @@
 import fnmatch
-import json
 import logging
 import re
 import shutil
-from datetime import datetime, timezone
 from pathlib import Path
 
+import db
 from config import (
     CLIENTS,
     CLIENT_EXTENSION_MAP,
@@ -18,8 +17,6 @@ from config import (
 )
 
 log = logging.getLogger("fileSorter")
-
-HISTORY_FILE = Path(__file__).parent / ".move_history.jsonl"
 
 
 def is_temp_file(path: Path) -> bool:
@@ -96,15 +93,18 @@ def sort_file(path: Path, base: Path = DOWNLOADS_FOLDER) -> Path | None:
             dest_dir = base / client / subcategory
         else:
             dest_dir = base / client
+        category = client
     else:
         regex_cat = get_regex_category(path)
         if regex_cat:
             dest_dir = base / regex_cat
+            category = regex_cat
         else:
-            category = get_category(path)
-            if category is None:
+            cat = get_category(path)
+            if cat is None:
                 return None
-            dest_dir = base / category
+            dest_dir = base / cat
+            category = cat
 
     dest_dir.mkdir(parents=True, exist_ok=True)
 
@@ -115,48 +115,19 @@ def sort_file(path: Path, base: Path = DOWNLOADS_FOLDER) -> Path | None:
         log.warning("Skipped %s: %s", path.name, e)
         return None
 
-    _record_move(path, dest)
+    db.record_move(path, dest, category)
     log.info("Moved: %s -> %s", path.name, dest.relative_to(base))
     return dest
 
 
-def _record_move(src: Path, dest: Path):
-    record = {
-        "time": datetime.now(timezone.utc).isoformat(),
-        "src": str(src),
-        "dest": str(dest),
-    }
-    with open(HISTORY_FILE, "a", encoding="utf-8") as f:
-        f.write(json.dumps(record) + "\n")
-
-
-def _load_history() -> list[dict]:
-    if not HISTORY_FILE.exists():
-        return []
-    records = []
-    with open(HISTORY_FILE, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                records.append(json.loads(line))
-    return records
-
-
-def _save_history(records: list[dict]):
-    with open(HISTORY_FILE, "w", encoding="utf-8") as f:
-        for record in records:
-            f.write(json.dumps(record) + "\n")
-
-
 def undo(count: int = 1) -> int:
-    records = _load_history()
+    records = db.get_pending_undos(count)
     if not records:
         log.info("Nothing to undo")
         return 0
 
     undone = 0
-    for _ in range(min(count, len(records))):
-        record = records.pop()
+    for record in records:
         dest = Path(record["dest"])
         src = Path(record["src"])
 
@@ -170,13 +141,40 @@ def undo(count: int = 1) -> int:
             shutil.move(str(dest), str(src_final))
         except (PermissionError, OSError) as e:
             log.warning("Skipped undo %s: %s", dest.name, e)
-            records.append(record)
             continue
 
+        db.mark_undone(record["id"])
         log.info("Undone: %s -> %s", dest.name, src_final)
         undone += 1
 
-    _save_history(records)
+    return undone
+
+
+def undo_selected(move_ids: list[int]) -> int:
+    undone = 0
+    for move_id in move_ids:
+        record = db.get_move(move_id)
+        if not record or record["undone"]:
+            continue
+        dest = Path(record["dest"])
+        src = Path(record["src"])
+
+        if not dest.exists():
+            log.warning("Skipped undo: %s no longer exists", dest.name)
+            continue
+
+        src.parent.mkdir(parents=True, exist_ok=True)
+        src_final = resolve_duplicate(src)
+        try:
+            shutil.move(str(dest), str(src_final))
+        except (PermissionError, OSError) as e:
+            log.warning("Skipped undo %s: %s", dest.name, e)
+            continue
+
+        db.mark_undone(move_id)
+        log.info("Undone: %s -> %s", dest.name, src_final)
+        undone += 1
+
     return undone
 
 
@@ -186,4 +184,6 @@ def sweep(base: Path = DOWNLOADS_FOLDER) -> int:
         if item.is_file():
             if sort_file(item, base):
                 count += 1
+    if count:
+        db.record_sweep(count)
     return count
