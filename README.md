@@ -153,6 +153,16 @@ CATEGORIES = {
 
 The subfolder is created automatically — no other code changes needed.
 
+## Testing
+
+```bash
+# Run all tests
+.venv\Scripts\python -m pytest test_sorter.py -v
+
+# Run tests matching a keyword
+.venv\Scripts\python -m pytest test_sorter.py -k "client"
+```
+
 ## Logs
 
 Daily log files are written to `logs/yyyy/mm/dd.log`:
