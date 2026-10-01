@@ -1,3 +1,4 @@
+import sorter
 from sorter import (
     get_category,
     get_client,
@@ -6,6 +7,7 @@ from sorter import (
     resolve_duplicate,
     sort_file,
     sweep,
+    undo,
 )
 
 
@@ -226,3 +228,67 @@ class TestSweep:
         assert count == 1
         assert (tmp_path / "data.xyz").exists()
         assert (tmp_path / "download.crdownload").exists()
+
+
+# --- undo ---
+
+class TestUndo:
+    def _with_history(self, tmp_path, monkeypatch):
+        history_file = tmp_path / ".move_history.jsonl"
+        monkeypatch.setattr(sorter, "HISTORY_FILE", history_file)
+        return history_file
+
+    def test_undo_last_move(self, tmp_path, monkeypatch):
+        self._with_history(tmp_path, monkeypatch)
+        f = tmp_path / "report.pdf"
+        f.write_text("test")
+        sort_file(f, tmp_path)
+        assert (tmp_path / "Documents" / "report.pdf").exists()
+        assert not f.exists()
+
+        undone = undo(1)
+        assert undone == 1
+        assert f.exists()
+        assert not (tmp_path / "Documents" / "report.pdf").exists()
+
+    def test_undo_multiple(self, tmp_path, monkeypatch):
+        self._with_history(tmp_path, monkeypatch)
+        f1 = tmp_path / "photo.jpg"
+        f2 = tmp_path / "report.pdf"
+        f1.write_text("img")
+        f2.write_text("doc")
+        sort_file(f1, tmp_path)
+        sort_file(f2, tmp_path)
+
+        undone = undo(2)
+        assert undone == 2
+        assert f1.exists()
+        assert f2.exists()
+
+    def test_undo_all(self, tmp_path, monkeypatch):
+        self._with_history(tmp_path, monkeypatch)
+        for name in ["a.pdf", "b.jpg", "c.exe"]:
+            f = tmp_path / name
+            f.write_text("test")
+            sort_file(f, tmp_path)
+
+        undone = undo(100)
+        assert undone == 3
+        assert (tmp_path / "a.pdf").exists()
+        assert (tmp_path / "b.jpg").exists()
+        assert (tmp_path / "c.exe").exists()
+
+    def test_undo_empty_history(self, tmp_path, monkeypatch):
+        self._with_history(tmp_path, monkeypatch)
+        assert undo(1) == 0
+
+    def test_undo_missing_file(self, tmp_path, monkeypatch):
+        self._with_history(tmp_path, monkeypatch)
+        f = tmp_path / "report.pdf"
+        f.write_text("test")
+        sort_file(f, tmp_path)
+        # Delete the sorted file before undoing
+        (tmp_path / "Documents" / "report.pdf").unlink()
+
+        undone = undo(1)
+        assert undone == 0

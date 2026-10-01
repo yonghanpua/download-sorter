@@ -10,6 +10,7 @@ A Python utility that automatically organizes your Downloads folder by sorting f
 - **Duplicate safety** — auto-renames with `(1)`, `(2)`, etc. instead of overwriting
 - **Daily logs** — organized in `logs/yyyy/mm/dd.log` for easy tracking
 - **Client sorting** — route files to client folders with sub-categories based on filename keywords
+- **Undo** — reverse the last sort action to move files back to Downloads
 - **Background operation** — runs silently on startup via Windows Task Scheduler
 
 ## Default Categories
@@ -53,6 +54,21 @@ python -m venv .venv
 ```
 
 Press `Ctrl+C` to stop.
+
+### Undo last move(s)
+
+```bash
+# Undo the last sorted file
+.venv\Scripts\python main.py undo
+
+# Undo the last 5 moves
+.venv\Scripts\python main.py undo --count 5
+
+# Undo all recorded moves
+.venv\Scripts\python main.py undo --count 0
+```
+
+Move history is stored in `.move_history.jsonl` (git-ignored). Each sort operation appends a record; undo pops from the end and moves the file back.
 
 ### Options
 

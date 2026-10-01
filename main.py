@@ -55,8 +55,8 @@ def main():
     parser = argparse.ArgumentParser(description="Sort files in your Downloads folder")
     parser.add_argument(
         "mode",
-        choices=["watch", "sweep"],
-        help="'watch' for real-time sorting, 'sweep' for one-time batch sort",
+        choices=["watch", "sweep", "undo"],
+        help="'watch' for real-time, 'sweep' for batch sort, 'undo' to reverse last move(s)",
     )
     parser.add_argument(
         "--folder",
@@ -70,21 +70,36 @@ def main():
         default=Path("logs"),
         help="Directory for daily log files (default: ./logs)",
     )
+    parser.add_argument(
+        "--count",
+        type=int,
+        default=1,
+        help="Number of moves to undo (default: 1, use 0 for all)",
+    )
     args = parser.parse_args()
 
     setup_logging(args.log_dir)
     log = logging.getLogger("fileSorter")
 
-    if not args.folder.is_dir():
-        log.error("Folder does not exist: %s", args.folder)
-        sys.exit(1)
+    if args.mode == "undo":
+        from sorter import undo, _load_history
 
-    if args.mode == "sweep":
+        total = len(_load_history())
+        n = total if args.count == 0 else args.count
+        undone = undo(n)
+        log.info("Undo complete: %d file(s) restored", undone)
+    elif args.mode == "sweep":
+        if not args.folder.is_dir():
+            log.error("Folder does not exist: %s", args.folder)
+            sys.exit(1)
         from sorter import sweep
 
         count = sweep(args.folder)
         log.info("Sweep complete: %d file(s) sorted", count)
     else:
+        if not args.folder.is_dir():
+            log.error("Folder does not exist: %s", args.folder)
+            sys.exit(1)
         from watcher import watch
 
         watch(args.folder)
