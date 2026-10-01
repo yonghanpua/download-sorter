@@ -1,6 +1,6 @@
 # fileSorter
 
-A Python utility that automatically organizes your Downloads folder by sorting files into categorized subfolders based on file extension.
+A Python utility that automatically organizes your Downloads folder by sorting files into categorized subfolders based on file extension. Supports real-time watching, batch sweeps, undo, and a live web dashboard.
 
 ## Features
 
@@ -8,9 +8,13 @@ A Python utility that automatically organizes your Downloads folder by sorting f
 - **Batch sweep** — one-command cleanup of all existing files
 - **Smart download handling** — ignores incomplete downloads (`.crdownload`, `.part`, `.tmp`) until finished
 - **Duplicate safety** — auto-renames with `(1)`, `(2)`, etc. instead of overwriting
-- **Daily logs** — organized in `logs/yyyy/mm/dd.log` for easy tracking
 - **Client sorting** — route files to client folders with sub-categories based on filename keywords
-- **Undo** — reverse the last sort action to move files back to Downloads
+- **Regex rules** — optional pattern-to-folder mapping for custom naming conventions
+- **Ignore list** — skip specific files or glob patterns from being sorted
+- **Undo** — reverse the last move, last N moves, or cherry-pick specific files to undo
+- **SQLite history** — all moves tracked in a local database with full audit trail
+- **Web dashboard** — live stats, charts, date filtering, watcher control, and selective undo
+- **Daily logs** — human-readable audit trail in `logs/yyyy/mm/dd.log`
 - **Background operation** — runs silently on startup via Windows Task Scheduler
 
 ## Default Categories
@@ -30,10 +34,10 @@ Files with unrecognized extensions are left in place.
 
 ## Setup
 
-Requires Python 3.10+.
+Requires Python 3.12+.
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/yonghan/fileSorter.git
 cd fileSorter
 python -m venv .venv
 .venv\Scripts\pip install -r requirements.txt
@@ -68,7 +72,33 @@ Press `Ctrl+C` to stop.
 .venv\Scripts\python main.py undo --count 0
 ```
 
-Move history is stored in `.move_history.jsonl` (git-ignored). Each sort operation appends a record; undo pops from the end and moves the file back.
+Move history is stored in `fileSorter.db` (SQLite). Undo marks moves as reversed in the database — the full history is always preserved.
+
+### Web Dashboard
+
+```bash
+.venv\Scripts\python dashboard.py
+```
+
+Opens a dashboard at `http://localhost:5000` with:
+
+- Category distribution (doughnut chart), hourly activity (bar chart), daily trends (line chart)
+- Date picker to filter all stats and history by day
+- Start/stop the watcher via Task Scheduler
+- Sweep trigger button
+- Move history table with checkboxes for selective undo
+- File existence status indicator (exists/missing)
+- Auto-refreshes every 10 seconds
+
+### Migrate existing logs
+
+If you have existing log files from before the SQLite migration:
+
+```bash
+.venv\Scripts\python main.py migrate
+```
+
+This imports move and sweep events from `logs/` into the database (runs once — skips if data already exists).
 
 ### Options
 
@@ -108,21 +138,22 @@ Unregister-ScheduledTask -TaskName 'FileSorter-Watch' -Confirm:$false
 Unregister-ScheduledTask -TaskName 'FileSorter-Sweep' -Confirm:$false
 ```
 
-## Client Sorting
+## Configuration
+
+All settings live in `config.py`.
+
+### Client Sorting
 
 Files whose names contain a client keyword are sorted into client folders with sub-categories instead of the default extension-based categories.
-
-Configure clients in `config.py`:
 
 ```python
 CLIENTS = {
     "AKSS": ["AKSS", "AKS24"],       # keywords to match (case-insensitive)
     "COKE": ["COKE", "CK-"],
-    "Wilmar": ["Wilmar", "WIL"],
 }
 ```
 
-Sub-categories are matched by **keyword first, then file extension** as fallback. Configure both in `CLIENT_SUBCATEGORIES` in `config.py`:
+Sub-categories are matched by **keyword first, then file extension** as fallback:
 
 ```python
 CLIENT_SUBCATEGORIES = {
@@ -146,19 +177,42 @@ Keyword match wins over extension. For example, `AKSS_dev_report.pdf` goes to `0
 ```
 Downloads/
   AKSS/
-    01. Commercial/     ← AKSS_proposal.txt (keyword), AKSS_summary.pdf (extension)
-    02. Documentation/  ← AKSS_manual.pdf (keyword), AKSS_notes.txt (extension)
-    03. Development/    ← AKSS_dev_report.pdf (keyword), AKSS_app.zip (extension)
-    AKSS_data.xyz       ← no keyword or extension match → client root
-  Documents/            ← non-client files sort normally
+    01. Commercial/     <- AKSS_proposal.txt (keyword), AKSS_summary.pdf (extension)
+    02. Documentation/  <- AKSS_manual.pdf (keyword), AKSS_notes.txt (extension)
+    03. Development/    <- AKSS_dev_report.pdf (keyword), AKSS_app.zip (extension)
+    AKSS_data.xyz       <- no keyword or extension match -> client root
+  Documents/            <- non-client files sort normally
   Images/
 ```
 
-Files matching a client but not any sub-category go to the client's root folder.
+### Ignore List
 
-## Customization
+Prevent specific files or patterns from being sorted:
 
-Edit `config.py` to add categories or extensions:
+```python
+IGNORE_LIST = [
+    "desktop.ini",
+    "*.bak",
+    "temp_*",
+]
+```
+
+### Regex Rules
+
+Route files by name pattern (checked after client match, before extension fallback):
+
+```python
+REGEX_RULES = {
+    r"^INV-\d{4}-\d+": "Invoices",      # INV-2024-001.pdf -> Invoices/
+    r"(?i)screenshot": "Screenshots",     # Screenshot_2024.png -> Screenshots/
+}
+```
+
+Leave the dict empty to disable.
+
+### Custom Categories
+
+Add or modify categories:
 
 ```python
 CATEGORIES = {
@@ -168,6 +222,33 @@ CATEGORIES = {
 ```
 
 The subfolder is created automatically — no other code changes needed.
+
+## Sorting Priority
+
+Files are evaluated in this order — first match wins:
+
+1. **Temp file** (`.crdownload`, `.part`, etc.) — skip
+2. **Dotfile** (`.hidden`) — skip
+3. **Ignore list** match — skip
+4. **Client keyword** match — client folder with sub-category
+5. **Regex rule** match — custom folder
+6. **Extension category** match — category folder
+7. **Unknown extension** — leave in place
+
+## Project Structure
+
+```
+fileSorter/
+├── config.py        # All extension/category/client/regex configuration
+├── db.py            # SQLite database layer (moves + sweeps tables)
+├── sorter.py        # Core sorting logic, undo, sweep
+├── watcher.py       # Watchdog filesystem observer with debounce
+├── main.py          # CLI entry point (watch, sweep, undo, migrate)
+├── dashboard.py     # Flask web dashboard with Chart.js
+├── test_sorter.py   # pytest test suite (67 tests)
+├── setup.ps1        # Windows Task Scheduler registration
+└── requirements.txt # Dependencies: watchdog, pytest, flask
+```
 
 ## Testing
 
@@ -188,3 +269,7 @@ Daily log files are written to `logs/yyyy/mm/dd.log`:
 2026-10-01 22:30:47  Moved: photo.jpg -> Images\photo.jpg
 2026-10-01 22:30:47  Skipped locked.xlsx: Permission denied
 ```
+
+## License
+
+MIT
