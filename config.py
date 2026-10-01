@@ -9,6 +9,30 @@ TEMP_EXTENSIONS = {
     ".opdownload", ".aria2",
 }
 
+# --- Ignore list ---
+# Files matching these are never sorted. Supports:
+#   - Exact filenames:  "desktop.ini"
+#   - Glob wildcards:   "*.log", "temp_*"
+IGNORE_LIST: list[str] = [
+    "desktop.ini",
+    "Thumbs.db",
+    ".DS_Store",
+    # "important_file.txt",
+    # "temp_*",
+    # "*.bak",
+]
+
+# --- Regex rules (optional) ---
+# Pattern -> folder. Checked before extension-based sorting.
+# Files matching a regex go to that folder. Leave empty to disable.
+# Example: files like "INV-2024-001.pdf" -> "Invoices" folder
+REGEX_RULES: dict[str, str] = {
+    # r"^INV-\d{4}-\d+": "Invoices",
+    # r"^RPT-\d+": "Reports",
+    # r"^IMG_\d{8}": "Camera Photos",
+    # r"(?i)screenshot": "Screenshots",
+}
+
 CATEGORIES = {
     "Documents": {
         ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
@@ -41,8 +65,8 @@ CATEGORIES = {
         ".ttf", ".otf", ".woff", ".woff2", ".eot",
     },
     "3D Prints": {
-        ".3mf", ".stl", ".step", ".obj", ".gcode"
-    }
+        ".3mf", ".stl", ".step", ".obj", ".gcode",
+    },
 }
 
 EXTENSION_MAP: dict[str, str] = {}
@@ -51,7 +75,7 @@ for _category, _extensions in CATEGORIES.items():
         EXTENSION_MAP[_ext] = _category
 
 # --- Client-based sorting ---
-# Maps client folder name → list of keywords to match in filenames (case-insensitive)
+# Maps client folder name -> list of keywords to match in filenames (case-insensitive)
 CLIENTS: dict[str, list[str]] = {
     "AKSS": ["AKSS", "AKS24"],
     # "COKE": ["COKE", "CK-"],

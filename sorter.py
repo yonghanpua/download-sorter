@@ -1,5 +1,7 @@
+import fnmatch
 import json
 import logging
+import re
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
@@ -10,6 +12,8 @@ from config import (
     CLIENT_KEYWORD_MAP,
     DOWNLOADS_FOLDER,
     EXTENSION_MAP,
+    IGNORE_LIST,
+    REGEX_RULES,
     TEMP_EXTENSIONS,
 )
 
@@ -20,6 +24,24 @@ HISTORY_FILE = Path(__file__).parent / ".move_history.jsonl"
 
 def is_temp_file(path: Path) -> bool:
     return path.suffix.lower() in TEMP_EXTENSIONS
+
+
+def is_ignored(path: Path) -> bool:
+    name = path.name
+    for pattern in IGNORE_LIST:
+        if fnmatch.fnmatch(name, pattern) or fnmatch.fnmatch(name.lower(), pattern.lower()):
+            return True
+    return False
+
+
+def get_regex_category(path: Path) -> str | None:
+    if not REGEX_RULES:
+        return None
+    name = path.name
+    for pattern, folder in REGEX_RULES.items():
+        if re.search(pattern, name):
+            return folder
+    return None
 
 
 def get_category(path: Path) -> str | None:
@@ -64,6 +86,8 @@ def sort_file(path: Path, base: Path = DOWNLOADS_FOLDER) -> Path | None:
         return None
     if path.name.startswith("."):
         return None
+    if is_ignored(path):
+        return None
 
     client = get_client(path)
     if client:
@@ -73,10 +97,14 @@ def sort_file(path: Path, base: Path = DOWNLOADS_FOLDER) -> Path | None:
         else:
             dest_dir = base / client
     else:
-        category = get_category(path)
-        if category is None:
-            return None
-        dest_dir = base / category
+        regex_cat = get_regex_category(path)
+        if regex_cat:
+            dest_dir = base / regex_cat
+        else:
+            category = get_category(path)
+            if category is None:
+                return None
+            dest_dir = base / category
 
     dest_dir.mkdir(parents=True, exist_ok=True)
 
