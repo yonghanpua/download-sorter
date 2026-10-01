@@ -1,0 +1,94 @@
+import argparse
+import datetime
+import logging
+import sys
+from pathlib import Path
+
+from config import DOWNLOADS_FOLDER
+
+
+class DailyLogHandler(logging.Handler):
+    """Writes log records to logs/yyyy/mm/dd.log, rolling at midnight."""
+
+    def __init__(self, base_dir: Path):
+        super().__init__()
+        self._base_dir = base_dir
+        self._current_date: datetime.date | None = None
+        self._stream = None
+
+    def _open(self, date: datetime.date):
+        if self._stream:
+            self._stream.close()
+        log_dir = self._base_dir / str(date.year) / f"{date.month:02d}"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_path = log_dir / f"{date.day:02d}.log"
+        self._stream = open(log_path, "a", encoding="utf-8")
+        self._current_date = date
+
+    def emit(self, record):
+        today = datetime.date.today()
+        if today != self._current_date:
+            self._open(today)
+        msg = self.format(record)
+        self._stream.write(msg + "\n")
+        self._stream.flush()
+
+    def close(self):
+        if self._stream:
+            self._stream.close()
+        super().close()
+
+
+def setup_logging(log_dir: Path | None = None):
+    handlers: list[logging.Handler] = [logging.StreamHandler()]
+    if log_dir:
+        handlers.append(DailyLogHandler(log_dir))
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s  %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        handlers=handlers,
+    )
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Sort files in your Downloads folder")
+    parser.add_argument(
+        "mode",
+        choices=["watch", "sweep"],
+        help="'watch' for real-time sorting, 'sweep' for one-time batch sort",
+    )
+    parser.add_argument(
+        "--folder",
+        type=Path,
+        default=DOWNLOADS_FOLDER,
+        help=f"Folder to sort (default: {DOWNLOADS_FOLDER})",
+    )
+    parser.add_argument(
+        "--log-dir",
+        type=Path,
+        default=Path("logs"),
+        help="Directory for daily log files (default: ./logs)",
+    )
+    args = parser.parse_args()
+
+    setup_logging(args.log_dir)
+    log = logging.getLogger("fileSorter")
+
+    if not args.folder.is_dir():
+        log.error("Folder does not exist: %s", args.folder)
+        sys.exit(1)
+
+    if args.mode == "sweep":
+        from sorter import sweep
+
+        count = sweep(args.folder)
+        log.info("Sweep complete: %d file(s) sorted", count)
+    else:
+        from watcher import watch
+
+        watch(args.folder)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,39 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project
+
+fileSorter — a Python utility that automatically organizes files in the Windows Downloads folder into categorized subfolders (Documents, Images, Media, Archives, Installers, Code, Fonts). Supports real-time filesystem watching and one-shot batch sweeps.
+
+## Commands
+
+```bash
+# Setup
+python -m venv .venv
+.venv\Scripts\pip install -r requirements.txt
+
+# Run
+.venv\Scripts\python main.py watch              # real-time watcher
+.venv\Scripts\python main.py sweep              # one-time batch sort
+.venv\Scripts\python main.py sweep --folder X   # sort a custom folder
+.venv\Scripts\python main.py watch --log-dir logs
+
+# Background setup (registers Windows Task Scheduler tasks)
+powershell -ExecutionPolicy Bypass -File setup.ps1
+```
+
+## Architecture
+
+- **config.py** — category-to-extensions mapping (`CATEGORIES` dict), reverse lookup (`EXTENSION_MAP`), temp-file extensions, debounce delay, and default folder path. All tuning happens here.
+- **sorter.py** — core logic: `sort_file()` classifies and moves a single file with duplicate renaming; `sweep()` iterates the folder. Skips temp/dot files and handles locked-file errors.
+- **watcher.py** — `watchdog` filesystem observer. `DownloadHandler` debounces file events (creation + rename) by `DEBOUNCE_SECONDS` before sorting, so in-progress downloads aren't moved prematurely.
+- **main.py** — CLI entry point with `watch` and `sweep` subcommands.
+- **setup.ps1** — registers two Task Scheduler tasks: `FileSorter-Watch` (on logon, uses `pythonw.exe` for no console) and `FileSorter-Sweep` (daily at 2 AM).
+
+## Key design decisions
+
+- Extension → category mapping is the single source of truth in `config.py`. Unrecognized extensions are left in place.
+- Duplicate resolution appends ` (1)`, ` (2)`, etc. — never overwrites.
+- The watcher uses a per-file debounce timer (default 3s) so that Chrome `.crdownload` → final rename events are handled cleanly.
+- `recursive=False` on the observer — only top-level files are watched, not the category subfolders.
