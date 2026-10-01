@@ -1,40 +1,21 @@
 """Live web dashboard for fileSorter — Flask app with controls + charts."""
 
 import logging
-import re
-import shutil
 import subprocess
 import webbrowser
-from collections import Counter
-from datetime import datetime
 from pathlib import Path
 
 from flask import Flask, jsonify, render_template_string, request
 
+import db
 from config import DOWNLOADS_FOLDER
 from main import DailyLogHandler
-from sorter import (
-    _load_history,
-    _save_history,
-    resolve_duplicate,
-    sweep,
-    undo,
-)
+from sorter import sweep, undo, undo_selected
 
 LOG_DIR = Path(__file__).parent / "logs"
 log = logging.getLogger("fileSorter")
 
 app = Flask(__name__)
-
-MOVE_PATTERN = re.compile(
-    r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+Moved: (.+?) -> (.+)$"
-)
-UNDO_PATTERN = re.compile(
-    r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+Undone: (.+?) -> (.+)$"
-)
-SWEEP_PATTERN = re.compile(
-    r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+Sweep complete: (\d+) file"
-)
 
 TASK_NAME = "FileSorter-Watch"
 
@@ -70,57 +51,6 @@ def _stop_task():
     )
 
 
-def _parse_logs(date_filter: str | None = None) -> dict:
-    moves, undos, sweeps = [], [], []
-    daily_counts: Counter[str] = Counter()
-    category_counts: Counter[str] = Counter()
-    hourly_counts: Counter[int] = Counter()
-    available_dates: set[str] = set()
-
-    for log_file in sorted(LOG_DIR.rglob("*.log")):
-        for line in log_file.read_text(encoding="utf-8", errors="replace").splitlines():
-            m = MOVE_PATTERN.match(line)
-            if m:
-                ts, filename, dest = m.group(1), m.group(2), m.group(3)
-                date_str = ts[:10]
-                available_dates.add(date_str)
-                if date_filter and date_str != date_filter:
-                    daily_counts[date_str] += 1
-                    continue
-                category = dest.split("\\")[0]
-                moves.append({"time": ts, "file": filename, "dest": dest, "category": category})
-                daily_counts[date_str] += 1
-                category_counts[category] += 1
-                dt = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
-                hourly_counts[dt.hour] += 1
-                continue
-            u = UNDO_PATTERN.match(line)
-            if u:
-                date_str = u.group(1)[:10]
-                available_dates.add(date_str)
-                if not date_filter or date_str == date_filter:
-                    undos.append({"time": u.group(1), "file": u.group(2), "dest": u.group(3)})
-                continue
-            s = SWEEP_PATTERN.match(line)
-            if s:
-                date_str = s.group(1)[:10]
-                available_dates.add(date_str)
-                if not date_filter or date_str == date_filter:
-                    sweeps.append({"time": s.group(1), "count": int(s.group(2))})
-
-    return {
-        "total_moved": len(moves),
-        "total_undone": len(undos),
-        "total_sweeps": len(sweeps),
-        "days_active": len(available_dates),
-        "daily": dict(sorted(daily_counts.items())),
-        "categories": dict(category_counts.most_common()),
-        "hourly": {h: hourly_counts.get(h, 0) for h in range(24)},
-        "recent": list(reversed(moves[-50:])),
-        "available_dates": sorted(available_dates, reverse=True),
-    }
-
-
 # --- API routes ---
 
 @app.route("/")
@@ -130,37 +60,24 @@ def index():
 
 @app.route("/api/stats")
 def api_stats():
-    date_filter = request.args.get("date")
-    data = _parse_logs(date_filter if date_filter else None)
+    date_filter = request.args.get("date") or None
+    data = db.get_stats(date_filter)
     data["watching"] = _is_task_running()
-    data["history_count"] = len(_load_history())
     return jsonify(data)
 
 
 @app.route("/api/history")
 def api_history():
-    records = _load_history()
-    date_filter = request.args.get("date")
-    items = []
-    for i, r in enumerate(records):
-        ts = r.get("time", "")
-        date_str = ts[:10] if len(ts) >= 10 else ""
-        if date_filter and date_str != date_filter:
-            continue
-        src = Path(r["src"])
-        dest = Path(r["dest"])
+    date_filter = request.args.get("date") or None
+    items = db.get_history(date_filter)
+    for item in items:
+        dest = Path(item["dest"])
+        item["file"] = Path(item["src"]).name
         try:
-            dest_rel = str(dest.relative_to(DOWNLOADS_FOLDER))
+            item["dest_display"] = str(dest.relative_to(DOWNLOADS_FOLDER))
         except ValueError:
-            dest_rel = str(dest)
-        items.append({
-            "index": i,
-            "time": ts,
-            "file": src.name,
-            "dest": dest_rel,
-            "exists": dest.exists(),
-        })
-    items.reverse()
+            item["dest_display"] = str(dest)
+        item["exists"] = dest.exists()
     return jsonify({"items": items})
 
 
@@ -178,42 +95,15 @@ def api_undo():
 
 @app.route("/api/undo-all", methods=["POST"])
 def api_undo_all():
-    total = len(_load_history())
-    undone = undo(total)
+    pending = db.get_pending_undos()
+    undone = undo(len(pending))
     return jsonify({"ok": True, "undone": undone})
 
 
 @app.route("/api/undo-selected", methods=["POST"])
 def api_undo_selected():
-    indices = set(request.json.get("indices", []))
-    if not indices:
-        return jsonify({"ok": True, "undone": 0})
-
-    records = _load_history()
-    undone = 0
-    to_keep = []
-
-    for i, record in enumerate(records):
-        if i not in indices:
-            to_keep.append(record)
-            continue
-        dest = Path(record["dest"])
-        src = Path(record["src"])
-        if not dest.exists():
-            log.warning("Skipped undo: %s no longer exists", dest.name)
-            continue
-        src.parent.mkdir(parents=True, exist_ok=True)
-        src_final = resolve_duplicate(src)
-        try:
-            shutil.move(str(dest), str(src_final))
-        except (PermissionError, OSError) as e:
-            log.warning("Skipped undo %s: %s", dest.name, e)
-            to_keep.append(record)
-            continue
-        log.info("Undone: %s -> %s", dest.name, src_final)
-        undone += 1
-
-    _save_history(to_keep)
+    ids = request.json.get("ids", [])
+    undone = undo_selected(ids)
     return jsonify({"ok": True, "undone": undone})
 
 
@@ -452,12 +342,12 @@ function onDateChange() {
     refresh();
 }
 
-function getCheckedIndices() {
-    return Array.from(document.querySelectorAll('.row-cb:checked')).map(cb => parseInt(cb.dataset.idx));
+function getCheckedIds() {
+    return Array.from(document.querySelectorAll('.row-cb:checked')).map(cb => parseInt(cb.dataset.id));
 }
 
 function updateUndoBar() {
-    const checked = getCheckedIndices();
+    const checked = getCheckedIds();
     const bar = document.getElementById('undoBar');
     bar.className = checked.length ? 'undo-bar visible' : 'undo-bar';
     document.getElementById('selectedCount').textContent = checked.length;
@@ -470,10 +360,10 @@ function toggleSelectAll() {
 }
 
 async function undoSelected() {
-    const indices = getCheckedIndices();
-    if (!indices.length) return;
-    showToast('Undoing ' + indices.length + ' file(s)...');
-    const d = await apiPost('/api/undo-selected', { indices });
+    const ids = getCheckedIds();
+    if (!ids.length) return;
+    showToast('Undoing ' + ids.length + ' file(s)...');
+    const d = await apiPost('/api/undo-selected', { ids });
     showToast(d.undone ? 'Undone ' + d.undone + ' file(s)' : 'Nothing to undo');
     document.getElementById('selectAll').checked = false;
     refresh();
@@ -519,7 +409,6 @@ async function refresh() {
     document.getElementById('sSweeps').textContent = d.total_sweeps;
     document.getElementById('sDays').textContent = d.days_active;
 
-    // Update date picker options
     const sel = document.getElementById('dateFilter');
     const prev = sel.value;
     const opts = '<option value="">All dates</option>' +
@@ -543,17 +432,16 @@ async function refresh() {
     dailyChart.data.datasets[0].data = Object.values(d.daily);
     dailyChart.update();
 
-    // History table with checkboxes
     const tbody = document.getElementById('historyBody');
     tbody.innerHTML = h.items.map(item => {
         const gone = !item.exists;
         return '<tr class="' + (gone ? 'row-gone' : '') + '">' +
-            '<td><input type="checkbox" class="row-cb" data-idx="' + item.index + '"' +
+            '<td><input type="checkbox" class="row-cb" data-id="' + item.id + '"' +
             (gone ? ' disabled title="File no longer exists"' : '') +
             ' onchange="updateUndoBar()"></td>' +
-            '<td>' + escapeHtml(item.time.slice(0,19)) + '</td>' +
+            '<td>' + escapeHtml(item.timestamp) + '</td>' +
             '<td title="' + escapeHtml(item.file) + '">' + escapeHtml(truncate(item.file, 35)) + '</td>' +
-            '<td title="' + escapeHtml(item.dest) + '">' + escapeHtml(truncate(item.dest, 35)) + '</td>' +
+            '<td title="' + escapeHtml(item.dest_display) + '">' + escapeHtml(truncate(item.dest_display, 35)) + '</td>' +
             '<td>' + (gone ? '<span style="color:var(--danger);font-size:11px">Missing</span>' :
                              '<span style="color:var(--success);font-size:11px">Exists</span>') + '</td></tr>';
     }).join('');
@@ -578,6 +466,8 @@ def main():
     logger.setLevel(logging.INFO)
     logger.addHandler(file_handler)
     logger.addHandler(logging.StreamHandler())
+
+    db.init_db()
 
     print("Dashboard running at http://localhost:5000")
     webbrowser.open("http://localhost:5000")

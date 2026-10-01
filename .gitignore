@@ -3,5 +3,8 @@ __pycache__/
 logs/
 *.pyc
 .move_history.jsonl
+fileSorter.db
+fileSorter.db-wal
+fileSorter.db-shm
 .pytest_cache/
 dashboard.html

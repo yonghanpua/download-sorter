@@ -4,6 +4,7 @@ import logging
 import sys
 from pathlib import Path
 
+import db
 from config import DOWNLOADS_FOLDER
 
 
@@ -55,8 +56,8 @@ def main():
     parser = argparse.ArgumentParser(description="Sort files in your Downloads folder")
     parser.add_argument(
         "mode",
-        choices=["watch", "sweep", "undo"],
-        help="'watch' for real-time, 'sweep' for batch sort, 'undo' to reverse last move(s)",
+        choices=["watch", "sweep", "undo", "migrate"],
+        help="'watch' for real-time, 'sweep' for batch sort, 'undo' to reverse, 'migrate' to import logs into DB",
     )
     parser.add_argument(
         "--folder",
@@ -78,14 +79,26 @@ def main():
     )
     args = parser.parse_args()
 
+    db.init_db()
     setup_logging(args.log_dir)
     log = logging.getLogger("fileSorter")
 
-    if args.mode == "undo":
-        from sorter import undo, _load_history
+    if args.mode == "migrate":
+        result = db.migrate_from_logs(args.log_dir, args.folder)
+        if result.get("skipped"):
+            log.info("Database already has data — skipping migration")
+        else:
+            log.info(
+                "Migration complete: %d move(s), %d sweep(s) imported",
+                result["moves"], result["sweeps"],
+            )
+    elif args.mode == "undo":
+        from sorter import undo
 
-        total = len(_load_history())
-        n = total if args.count == 0 else args.count
+        n = 0 if args.count == 0 else args.count
+        if n == 0:
+            pending = db.get_pending_undos()
+            n = len(pending)
         undone = undo(n)
         log.info("Undo complete: %d file(s) restored", undone)
     elif args.mode == "sweep":
