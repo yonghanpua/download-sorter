@@ -212,6 +212,7 @@ def api_get_settings():
         },
         "ignore_list": config.IGNORE_LIST,
         "regex_rules": config.REGEX_RULES,
+        "notifications_enabled": config.NOTIFICATIONS_ENABLED,
     })
 
 
@@ -219,7 +220,8 @@ def api_get_settings():
 def api_save_settings():
     data = request.json
     for key in ("categories", "clients", "client_subcategories",
-                "ignore_list", "regex_rules", "downloads_folder", "debounce_seconds"):
+                "ignore_list", "regex_rules", "downloads_folder",
+                "debounce_seconds", "notifications_enabled"):
         if key in data:
             db.save_setting(key, data[key])
     config.load_overrides()
@@ -233,7 +235,8 @@ def api_reset_settings():
         db.delete_setting(key)
     else:
         for k in ("categories", "clients", "client_subcategories",
-                   "ignore_list", "regex_rules", "downloads_folder", "debounce_seconds"):
+                   "ignore_list", "regex_rules", "downloads_folder",
+                   "debounce_seconds", "notifications_enabled"):
             db.delete_setting(k)
     config.load_overrides()
     return jsonify({"ok": True})
@@ -507,6 +510,10 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
         <label>Debounce Delay (seconds)</label>
         <input type="number" id="cfgDebounce" min="1" max="30">
     </div>
+    <div class="field" style="display:flex;align-items:center;gap:8px;margin-top:4px">
+        <input type="checkbox" id="cfgNotify" style="width:auto">
+        <label for="cfgNotify" style="display:inline;margin:0;cursor:pointer">Enable desktop notifications</label>
+    </div>
 </div>
 
 <!-- Categories -->
@@ -656,6 +663,7 @@ function renderRegex() {
 function renderAll() {
     document.getElementById('cfgFolder').value = S.downloads_folder;
     document.getElementById('cfgDebounce').value = S.debounce_seconds;
+    document.getElementById('cfgNotify').checked = S.notifications_enabled;
     renderCategories();
     renderClients();
     renderSubcats();
@@ -669,6 +677,7 @@ function collectState() {
     const data = {};
     data.downloads_folder = document.getElementById('cfgFolder').value;
     data.debounce_seconds = parseInt(document.getElementById('cfgDebounce').value) || 3;
+    data.notifications_enabled = document.getElementById('cfgNotify').checked;
 
     data.categories = {};
     document.querySelectorAll('#catContainer .cat-card').forEach(card => {

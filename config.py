@@ -4,6 +4,7 @@ from pathlib import Path
 DOWNLOADS_FOLDER = Path.home() / "Downloads"
 
 DEBOUNCE_SECONDS = 3
+NOTIFICATIONS_ENABLED = True
 
 TEMP_EXTENSIONS = {
     ".crdownload", ".part", ".tmp", ".download", ".partial",
@@ -113,6 +114,7 @@ _rebuild_maps()
 _DEFAULTS = {
     "downloads_folder": str(DOWNLOADS_FOLDER),
     "debounce_seconds": DEBOUNCE_SECONDS,
+    "notifications_enabled": NOTIFICATIONS_ENABLED,
     "categories": {k: sorted(v) for k, v in CATEGORIES.items()},
     "clients": copy.deepcopy(CLIENTS),
     "client_subcategories": {
@@ -126,12 +128,13 @@ _DEFAULTS = {
 
 def load_overrides():
     """Reset to code defaults, then apply any DB overrides."""
-    global DOWNLOADS_FOLDER, DEBOUNCE_SECONDS
+    global DOWNLOADS_FOLDER, DEBOUNCE_SECONDS, NOTIFICATIONS_ENABLED
     global CATEGORIES, CLIENTS, CLIENT_SUBCATEGORIES
     global IGNORE_LIST, REGEX_RULES
 
     DOWNLOADS_FOLDER = Path(_DEFAULTS["downloads_folder"])
     DEBOUNCE_SECONDS = _DEFAULTS["debounce_seconds"]
+    NOTIFICATIONS_ENABLED = _DEFAULTS["notifications_enabled"]
     CATEGORIES = {k: set(v) for k, v in _DEFAULTS["categories"].items()}
     CLIENTS = copy.deepcopy(_DEFAULTS["clients"])
     CLIENT_SUBCATEGORIES = {
@@ -152,6 +155,8 @@ def load_overrides():
         DOWNLOADS_FOLDER = Path(overrides["downloads_folder"])
     if "debounce_seconds" in overrides:
         DEBOUNCE_SECONDS = overrides["debounce_seconds"]
+    if "notifications_enabled" in overrides:
+        NOTIFICATIONS_ENABLED = overrides["notifications_enabled"]
     if "categories" in overrides:
         CATEGORIES = {k: set(v) for k, v in overrides["categories"].items()}
     if "clients" in overrides:

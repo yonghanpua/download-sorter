@@ -41,7 +41,8 @@ powershell -ExecutionPolicy Bypass -File setup.ps1
 - **sorter.py** — core logic: `sort_file()` checks ignore list, client match (keyword priority), regex rules, then extension-based category. `sweep()` iterates the folder. `undo()` and `undo_selected()` reverse moves via the SQLite database. Skips temp/dot files and handles locked-file errors.
 - **test_sorter.py** — pytest suite covering all sorting functions including undo and selective undo. Uses `tmp_path` fixtures and an autouse `_temp_db` fixture that redirects `db.DB_PATH` to a temp file.
 - **dashboard.py** — Flask web app with Chart.js charts, date filtering, watcher control (via Windows Task Scheduler), move history with selective undo, and a settings page (`/settings`) for editing all config from the browser. Settings API: `GET/POST /api/settings`, `POST /api/settings/reset`. Saves overrides to the `settings` table and calls `config.load_overrides()` to apply immediately.
-- **watcher.py** — `watchdog` filesystem observer. `DownloadHandler` debounces file events (creation + rename) by `DEBOUNCE_SECONDS` before sorting, so in-progress downloads aren't moved prematurely.
+- **notify.py** — Windows toast notifications via `winotify`. `file_sorted()` fires per-file in watcher mode; `sweep_complete()` fires a summary after batch sweeps. Sends asynchronously on a daemon thread. Controlled by `config.NOTIFICATIONS_ENABLED`.
+- **watcher.py** — `watchdog` filesystem observer. `DownloadHandler` debounces file events (creation + rename) by `DEBOUNCE_SECONDS` before sorting, so in-progress downloads aren't moved prematurely. Fires toast notifications on successful sorts.
 - **main.py** — CLI entry point with `watch`, `sweep`, `undo`, and `migrate` subcommands. Calls `config.load_overrides()` after `db.init_db()` to apply saved settings.
 - **setup.ps1** — registers two Task Scheduler tasks: `FileSorter-Watch` (on logon, uses `pythonw.exe` for no console) and `FileSorter-Sweep` (daily at 2 AM).
 

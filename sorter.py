@@ -6,6 +6,7 @@ from pathlib import Path
 
 import config
 import db
+import notify
 
 log = logging.getLogger("fileSorter")
 
@@ -181,4 +182,5 @@ def sweep(base: Path = None) -> int:
                 count += 1
     if count:
         db.record_sweep(count)
+        notify.sweep_complete(count)
     return count

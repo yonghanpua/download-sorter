@@ -15,6 +15,7 @@ A Python utility that automatically organizes your Downloads folder by sorting f
 - **SQLite history** — all moves tracked in a local database with full audit trail
 - **Web dashboard** — live stats, charts, date filtering, watcher control, and selective undo
 - **Browser settings** — edit all configuration (categories, clients, regex rules, ignore list) from the dashboard
+- **Desktop notifications** — Windows toast notifications when files are sorted (toggle on/off in settings)
 - **Daily logs** — human-readable audit trail in `logs/yyyy/mm/dd.log`
 - **Background operation** — runs silently on startup via Windows Task Scheduler
 
@@ -259,10 +260,11 @@ fileSorter/
 ├── sorter.py        # Core sorting logic, undo, sweep
 ├── watcher.py       # Watchdog filesystem observer with debounce
 ├── main.py          # CLI entry point (watch, sweep, undo, migrate)
-├── dashboard.py     # Flask web dashboard with Chart.js
+├── notify.py        # Windows toast notifications
+├── dashboard.py     # Flask web dashboard with Chart.js + settings
 ├── test_sorter.py   # pytest test suite (67 tests)
 ├── setup.ps1        # Windows Task Scheduler registration
-└── requirements.txt # Dependencies: watchdog, pytest, flask
+└── requirements.txt # Dependencies: watchdog, pytest, flask, winotify
 ```
 
 ## Testing

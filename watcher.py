@@ -6,6 +6,7 @@ from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
 import config
+import notify
 from sorter import is_temp_file, sort_file
 
 log = logging.getLogger("fileSorter")
@@ -33,7 +34,13 @@ class DownloadHandler(FileSystemEventHandler):
         with self._lock:
             self._timers.pop(str(path), None)
         if path.exists() and not is_temp_file(path):
-            sort_file(path, self._base)
+            dest = sort_file(path, self._base)
+            if dest:
+                try:
+                    category = dest.relative_to(self._base).parts[0]
+                except (ValueError, IndexError):
+                    category = dest.parent.name
+                notify.file_sorted(path.name, category)
 
     def on_created(self, event):
         if event.is_directory:
