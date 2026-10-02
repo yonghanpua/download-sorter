@@ -14,6 +14,7 @@ A Python utility that automatically organizes your Downloads folder by sorting f
 - **Undo** — reverse the last move, last N moves, or cherry-pick specific files to undo
 - **SQLite history** — all moves tracked in a local database with full audit trail
 - **Web dashboard** — live stats, charts, date filtering, watcher control, and selective undo
+- **Browser settings** — edit all configuration (categories, clients, regex rules, ignore list) from the dashboard
 - **Daily logs** — human-readable audit trail in `logs/yyyy/mm/dd.log`
 - **Background operation** — runs silently on startup via Windows Task Scheduler
 
@@ -89,6 +90,15 @@ Opens a dashboard at `http://localhost:5000` with:
 - Move history table with checkboxes for selective undo
 - File existence status indicator (exists/missing)
 - Auto-refreshes every 10 seconds
+- **Settings page** (`/settings`) — edit all config from the browser:
+  - General settings (downloads folder, debounce delay)
+  - Categories (add/remove categories and extensions)
+  - Clients (add/remove clients and keywords)
+  - Client sub-categories (keywords + extensions per sub-category)
+  - Ignore list (glob patterns)
+  - Regex rules (pattern → folder)
+  - Save All / Reset to Defaults buttons
+  - Changes are stored in SQLite and applied at runtime — no restart needed
 
 ### Migrate existing logs
 
@@ -140,7 +150,12 @@ Unregister-ScheduledTask -TaskName 'FileSorter-Sweep' -Confirm:$false
 
 ## Configuration
 
-All settings live in `config.py`.
+Settings can be edited in two ways:
+
+1. **Dashboard Settings page** — open the dashboard and click **Settings** in the top-right. Changes are saved to the SQLite database and applied immediately.
+2. **`config.py`** — code defaults. Database overrides (from the Settings page) take priority at runtime.
+
+To reset all overrides back to the code defaults, click **Reset to Defaults** on the Settings page.
 
 ### Client Sorting
 
@@ -240,7 +255,7 @@ Files are evaluated in this order — first match wins:
 ```
 fileSorter/
 ├── config.py        # All extension/category/client/regex configuration
-├── db.py            # SQLite database layer (moves + sweeps tables)
+├── db.py            # SQLite database layer (moves, sweeps, settings tables)
 ├── sorter.py        # Core sorting logic, undo, sweep
 ├── watcher.py       # Watchdog filesystem observer with debounce
 ├── main.py          # CLI entry point (watch, sweep, undo, migrate)

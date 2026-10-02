@@ -36,13 +36,13 @@ powershell -ExecutionPolicy Bypass -File setup.ps1
 
 ## Architecture
 
-- **config.py** — category-to-extensions mapping (`CATEGORIES` dict), reverse lookup (`EXTENSION_MAP`), client keywords (`CLIENTS`), sub-category rules with keyword+extension matching (`CLIENT_SUBCATEGORIES`), ignore list (`IGNORE_LIST`), optional regex rules (`REGEX_RULES`), temp-file extensions, debounce delay, and default folder path. All tuning happens here.
-- **db.py** — SQLite database layer (`fileSorter.db`). Stores move history (`moves` table with undone flag) and sweep events (`sweeps` table). Provides `record_move()`, `record_sweep()`, `get_pending_undos()`, `mark_undone()`, `get_stats()`, `get_history()`, and `migrate_from_logs()`. Uses WAL mode for concurrent access.
+- **config.py** — category-to-extensions mapping (`CATEGORIES` dict), reverse lookup (`EXTENSION_MAP`), client keywords (`CLIENTS`), sub-category rules with keyword+extension matching (`CLIENT_SUBCATEGORIES`), ignore list (`IGNORE_LIST`), optional regex rules (`REGEX_RULES`), temp-file extensions, debounce delay, and default folder path. Code defaults are snapshotted in `_DEFAULTS`. `load_overrides()` resets to defaults then applies DB overrides from the `settings` table. Other modules use `import config` (not `from config import`) so runtime overrides are visible.
+- **db.py** — SQLite database layer (`fileSorter.db`). Stores move history (`moves` table with undone flag), sweep events (`sweeps` table), and config overrides (`settings` table). Settings CRUD: `get_setting()`, `save_setting()`, `delete_setting()`, `get_all_settings()`. Uses WAL mode for concurrent access.
 - **sorter.py** — core logic: `sort_file()` checks ignore list, client match (keyword priority), regex rules, then extension-based category. `sweep()` iterates the folder. `undo()` and `undo_selected()` reverse moves via the SQLite database. Skips temp/dot files and handles locked-file errors.
 - **test_sorter.py** — pytest suite covering all sorting functions including undo and selective undo. Uses `tmp_path` fixtures and an autouse `_temp_db` fixture that redirects `db.DB_PATH` to a temp file.
-- **dashboard.py** — Flask web app with Chart.js charts, date filtering, watcher control (via Windows Task Scheduler), and move history with selective undo. Queries SQLite directly for instant stats.
+- **dashboard.py** — Flask web app with Chart.js charts, date filtering, watcher control (via Windows Task Scheduler), move history with selective undo, and a settings page (`/settings`) for editing all config from the browser. Settings API: `GET/POST /api/settings`, `POST /api/settings/reset`. Saves overrides to the `settings` table and calls `config.load_overrides()` to apply immediately.
 - **watcher.py** — `watchdog` filesystem observer. `DownloadHandler` debounces file events (creation + rename) by `DEBOUNCE_SECONDS` before sorting, so in-progress downloads aren't moved prematurely.
-- **main.py** — CLI entry point with `watch`, `sweep`, `undo`, and `migrate` subcommands.
+- **main.py** — CLI entry point with `watch`, `sweep`, `undo`, and `migrate` subcommands. Calls `config.load_overrides()` after `db.init_db()` to apply saved settings.
 - **setup.ps1** — registers two Task Scheduler tasks: `FileSorter-Watch` (on logon, uses `pythonw.exe` for no console) and `FileSorter-Sweep` (daily at 2 AM).
 
 ## Key design decisions
