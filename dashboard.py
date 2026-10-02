@@ -74,20 +74,14 @@ def _stop_task():
 
 SHARED_CSS = r"""
 :root {
-    --bg: #f1f5f9; --card: #ffffff; --text: #1e293b;
-    --muted: #64748b; --border: #e2e8f0;
+    --bg: #000000; --card: #111111; --text: #e4e4e7;
+    --muted: #a1a1aa; --border: #27272a;
     --primary: #2563eb; --success: #16a34a;
     --warning: #ea580c; --danger: #dc2626; --info: #0891b2;
 }
-@media (prefers-color-scheme: dark) {
-    :root {
-        --bg: #0f172a; --card: #1e293b; --text: #f1f5f9;
-        --muted: #94a3b8; --border: #334155;
-    }
-}
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
-    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-family: Segoe UI, system-ui, sans-serif;
     background: var(--bg); color: var(--text);
     padding: 24px; max-width: 1200px; margin: 0 auto;
 }
@@ -97,8 +91,10 @@ h1 { font-size: 24px; margin-bottom: 4px; }
 .subtitle { color: var(--muted); font-size: 13px; }
 .controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .btn {
-    padding: 8px 18px; border: none; border-radius: 8px; cursor: pointer;
-    font-size: 13px; font-weight: 600; color: white; transition: opacity 0.2s;
+    padding: 8px 18px; border: 1px solid transparent; border-radius: 8px; cursor: pointer;
+    font-family: inherit; font-size: 13px; font-weight: 600; color: white;
+    display: inline-flex; align-items: center; justify-content: center;
+    line-height: 1; text-decoration: none; transition: opacity 0.2s;
 }
 .btn:hover { opacity: 0.85; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -130,9 +126,8 @@ td { padding: 6px 10px; border-bottom: 1px solid var(--border); }
 tr:hover { background: var(--bg); }
 .badge {
     display: inline-block; padding: 2px 8px; border-radius: 10px;
-    font-size: 11px; font-weight: 600; background: #dbeafe; color: #1d4ed8;
+    font-size: 11px; font-weight: 600; background: #1e293b; color: #93c5fd;
 }
-@media (prefers-color-scheme: dark) { .badge { background: #1e3a5f; color: #93c5fd; } }
 .toast {
     position: fixed; bottom: 24px; right: 24px; padding: 12px 20px;
     background: var(--card); border: 1px solid var(--border);
@@ -529,9 +524,8 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
 .tag-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
 .tag {
     display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px;
-    background: #dbeafe; color: #1d4ed8; border-radius: 10px; font-size: 11px; font-weight: 600;
+    background: #1e293b; color: #93c5fd; border-radius: 10px; font-size: 11px; font-weight: 600;
 }
-@media (prefers-color-scheme: dark) { .tag { background: #1e3a5f; color: #93c5fd; } }
 .tag button {
     background: none; border: none; color: inherit; cursor: pointer; font-size: 13px;
     padding: 0 2px; opacity: 0.6;
