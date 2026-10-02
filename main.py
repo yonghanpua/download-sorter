@@ -56,8 +56,8 @@ def main():
     parser = argparse.ArgumentParser(description="Sort files in your Downloads folder")
     parser.add_argument(
         "mode",
-        choices=["watch", "sweep", "undo", "migrate"],
-        help="'watch' for real-time, 'sweep' for batch sort, 'undo' to reverse, 'migrate' to import logs into DB",
+        choices=["watch", "sweep", "undo", "migrate", "tray"],
+        help="'watch' for real-time, 'sweep' for batch sort, 'undo' to reverse, 'migrate' to import logs into DB, 'tray' for system tray",
     )
     parser.add_argument(
         "--folder",
@@ -112,6 +112,10 @@ def main():
 
         count = sweep(args.folder)
         log.info("Sweep complete: %d file(s) sorted", count)
+    elif args.mode == "tray":
+        from tray import run as tray_run
+
+        tray_run(start_watcher=True, dashboard=True)
     else:
         if not args.folder.is_dir():
             log.error("Folder does not exist: %s", args.folder)

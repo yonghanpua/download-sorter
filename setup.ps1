@@ -12,10 +12,10 @@ if (-not (Test-Path $PythonW)) {
     exit 1
 }
 
-# --- Task 1: Real-time watcher on logon ---
+# --- Task 1: System tray icon on logon (watcher + dashboard) ---
 $watchAction = New-ScheduledTaskAction `
     -Execute $PythonW `
-    -Argument "main.py watch --log-dir logs" `
+    -Argument "main.py tray" `
     -WorkingDirectory $ProjectDir
 
 $watchTrigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
@@ -32,10 +32,10 @@ Register-ScheduledTask `
     -Action $watchAction `
     -Trigger $watchTrigger `
     -Settings $watchSettings `
-    -Description "Real-time file sorter watching the Downloads folder" `
+    -Description "fileSorter system tray icon with real-time watcher and dashboard" `
     -Force | Out-Null
 
-Write-Host "[OK] FileSorter-Watch  - runs on logon (real-time watcher)" -ForegroundColor Green
+Write-Host "[OK] FileSorter-Watch  - runs on logon (system tray with watcher + dashboard)" -ForegroundColor Green
 
 # --- Task 2: Daily sweep at 2 AM ---
 $sweepAction = New-ScheduledTaskAction `
@@ -60,6 +60,6 @@ Register-ScheduledTask `
 
 Write-Host "[OK] FileSorter-Sweep - runs daily at 2:00 AM" -ForegroundColor Green
 Write-Host ""
-Write-Host "The watcher will start automatically on next logon." -ForegroundColor Cyan
+Write-Host "The tray icon will appear automatically on next logon." -ForegroundColor Cyan
 Write-Host "To start it right now:" -ForegroundColor Cyan
 Write-Host "  Start-ScheduledTask -TaskName 'FileSorter-Watch'"

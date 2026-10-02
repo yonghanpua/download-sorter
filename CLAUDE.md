@@ -22,8 +22,9 @@ python -m venv .venv
 .venv\Scripts\python main.py undo --count 0     # undo all moves
 .venv\Scripts\python main.py migrate            # import existing logs into SQLite
 .venv\Scripts\python main.py watch --log-dir logs
+.venv\Scripts\python main.py tray               # system tray with watcher + dashboard
 
-# Dashboard
+# Dashboard (standalone)
 .venv\Scripts\python dashboard.py               # web dashboard at localhost:5000
 
 # Tests
@@ -40,11 +41,12 @@ powershell -ExecutionPolicy Bypass -File setup.ps1
 - **db.py** — SQLite database layer (`fileSorter.db`). Stores move history (`moves` table with undone flag), sweep events (`sweeps` table), and config overrides (`settings` table). Settings CRUD: `get_setting()`, `save_setting()`, `delete_setting()`, `get_all_settings()`. Uses WAL mode for concurrent access.
 - **sorter.py** — core logic: `sort_file()` checks ignore list, client match (keyword priority), regex rules, then extension-based category. `sweep()` iterates the folder. `undo()` and `undo_selected()` reverse moves via the SQLite database. Skips temp/dot files and handles locked-file errors.
 - **test_sorter.py** — pytest suite covering all sorting functions including undo and selective undo. Uses `tmp_path` fixtures and an autouse `_temp_db` fixture that redirects `db.DB_PATH` to a temp file.
-- **dashboard.py** — Flask web app with Chart.js charts, date filtering, watcher control (via Windows Task Scheduler), move history with selective undo, and a settings page (`/settings`) for editing all config from the browser. Settings API: `GET/POST /api/settings`, `POST /api/settings/reset`. Saves overrides to the `settings` table and calls `config.load_overrides()` to apply immediately.
+- **tray.py** — `pystray` system tray icon. Bundles the watcher (background thread), Flask dashboard (daemon thread), and quick-action menu (Pause/Start Watcher, Sweep Now, Open Dashboard, Quit). Icon color reflects watcher state (green=watching, grey=paused). Dashboard watcher controls talk directly to the tray's in-process watcher.
+- **dashboard.py** — Flask web app with Chart.js charts, date filtering, watcher control (via tray integration or Task Scheduler fallback), move history with selective undo, and a settings page (`/settings`) for editing all config from the browser. Settings API: `GET/POST /api/settings`, `POST /api/settings/reset`. Saves overrides to the `settings` table and calls `config.load_overrides()` to apply immediately.
 - **notify.py** — Windows toast notifications via `winotify`. `file_sorted()` fires per-file in watcher mode; `sweep_complete()` fires a summary after batch sweeps. Sends asynchronously on a daemon thread. Controlled by `config.NOTIFICATIONS_ENABLED`.
 - **watcher.py** — `watchdog` filesystem observer. `DownloadHandler` debounces file events (creation + rename) by `DEBOUNCE_SECONDS` before sorting, so in-progress downloads aren't moved prematurely. Fires toast notifications on successful sorts.
-- **main.py** — CLI entry point with `watch`, `sweep`, `undo`, and `migrate` subcommands. Calls `config.load_overrides()` after `db.init_db()` to apply saved settings.
-- **setup.ps1** — registers two Task Scheduler tasks: `FileSorter-Watch` (on logon, uses `pythonw.exe` for no console) and `FileSorter-Sweep` (daily at 2 AM).
+- **main.py** — CLI entry point with `watch`, `sweep`, `undo`, `migrate`, and `tray` subcommands. Calls `config.load_overrides()` after `db.init_db()` to apply saved settings.
+- **setup.ps1** — registers two Task Scheduler tasks: `FileSorter-Watch` (on logon, launches tray mode) and `FileSorter-Sweep` (daily at 2 AM).
 
 ## Key design decisions
 

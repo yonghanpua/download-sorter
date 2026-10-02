@@ -20,7 +20,18 @@ app = Flask(__name__)
 TASK_NAME = "FileSorter-Watch"
 
 
+def _tray_available() -> bool:
+    try:
+        import tray
+        return True
+    except ImportError:
+        return False
+
+
 def _is_task_running() -> bool:
+    if _tray_available():
+        import tray
+        return tray.is_watching()
     try:
         result = subprocess.run(
             ["powershell", "-Command",
@@ -33,6 +44,10 @@ def _is_task_running() -> bool:
 
 
 def _start_task():
+    if _tray_available():
+        import tray
+        tray._start_watcher()
+        return
     subprocess.run(
         ["powershell", "-Command", f"Start-ScheduledTask -TaskName '{TASK_NAME}'"],
         capture_output=True, timeout=5,
@@ -40,6 +55,10 @@ def _start_task():
 
 
 def _stop_task():
+    if _tray_available():
+        import tray
+        tray._stop_watcher()
+        return
     subprocess.run(
         ["powershell", "-Command", f"Stop-ScheduledTask -TaskName '{TASK_NAME}'"],
         capture_output=True, timeout=5,

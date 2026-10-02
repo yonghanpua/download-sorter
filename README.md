@@ -15,9 +15,10 @@ A Python utility that automatically organizes your Downloads folder by sorting f
 - **SQLite history** — all moves tracked in a local database with full audit trail
 - **Web dashboard** — live stats, charts, date filtering, watcher control, and selective undo
 - **Browser settings** — edit all configuration (categories, clients, regex rules, ignore list) from the dashboard
+- **System tray icon** — pystray-based tray icon with status, Pause/Resume Watcher, Sweep Now, Open Dashboard, and Quit
 - **Desktop notifications** — Windows toast notifications when files are sorted (toggle on/off in settings)
 - **Daily logs** — human-readable audit trail in `logs/yyyy/mm/dd.log`
-- **Background operation** — runs silently on startup via Windows Task Scheduler
+- **Background operation** — runs on startup via Task Scheduler with a system tray icon
 
 ## Default Categories
 
@@ -53,13 +54,28 @@ python -m venv .venv
 .venv\Scripts\python main.py sweep
 ```
 
-### Real-time watcher
+### System tray (recommended)
+
+```bash
+.venv\Scripts\python main.py tray
+```
+
+Launches a system tray icon that bundles everything: real-time watcher, web dashboard (localhost:5000), and quick actions. Right-click the tray icon for:
+
+- **Pause/Start Watcher** — toggle file watching on/off
+- **Sweep Now** — one-time batch sort
+- **Open Dashboard** — open the web dashboard in your browser
+- **Quit** — stop everything
+
+The icon color indicates status: green = watching, grey = paused.
+
+### Real-time watcher (standalone)
 
 ```bash
 .venv\Scripts\python main.py watch
 ```
 
-Press `Ctrl+C` to stop.
+Press `Ctrl+C` to stop. For most users, `tray` mode is preferred since it includes the watcher plus dashboard and tray controls.
 
 ### Undo last move(s)
 
@@ -86,7 +102,7 @@ Opens a dashboard at `http://localhost:5000` with:
 
 - Category distribution (doughnut chart), hourly activity (bar chart), daily trends (line chart)
 - Date picker to filter all stats and history by day
-- Start/stop the watcher via Task Scheduler
+- Start/stop the watcher (via tray integration or Task Scheduler fallback)
 - Sweep trigger button
 - Move history table with checkboxes for selective undo
 - Search/filter on history table by filename or destination
@@ -135,10 +151,10 @@ This registers two scheduled tasks:
 
 | Task | Trigger | Purpose |
 |---|---|---|
-| `FileSorter-Watch` | On logon | Real-time watcher (no console window) |
+| `FileSorter-Watch` | On logon | System tray icon with watcher + dashboard |
 | `FileSorter-Sweep` | Daily at 2:00 AM | Batch sweep safety net |
 
-Start the watcher immediately:
+Start the tray immediately:
 
 ```powershell
 Start-ScheduledTask -TaskName 'FileSorter-Watch'
@@ -261,12 +277,13 @@ fileSorter/
 ├── db.py            # SQLite database layer (moves, sweeps, settings tables)
 ├── sorter.py        # Core sorting logic, undo, sweep
 ├── watcher.py       # Watchdog filesystem observer with debounce
-├── main.py          # CLI entry point (watch, sweep, undo, migrate)
+├── main.py          # CLI entry point (watch, sweep, undo, migrate, tray)
+├── tray.py          # System tray icon with watcher, dashboard, and controls
 ├── notify.py        # Windows toast notifications
 ├── dashboard.py     # Flask web dashboard with Chart.js + settings
 ├── test_sorter.py   # pytest test suite (67 tests)
 ├── setup.ps1        # Windows Task Scheduler registration
-└── requirements.txt # Dependencies: watchdog, pytest, flask, winotify
+└── requirements.txt # Dependencies: watchdog, pytest, flask, winotify, pystray, Pillow
 ```
 
 ## Testing
