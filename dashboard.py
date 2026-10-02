@@ -544,9 +544,72 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
     display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;
 }
 .cat-header strong { font-size: 14px; }
+.tree { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.tree-node { border-bottom: 1px solid var(--border); }
+.tree-node:last-child { border-bottom: none; }
+.tree-row {
+    display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+    cursor: pointer; user-select: none; transition: background 0.15s;
+}
+.tree-row:hover { background: rgba(255,255,255,0.03); }
+.tree-chevron {
+    width: 16px; font-size: 10px; color: var(--muted); transition: transform 0.2s;
+    flex-shrink: 0; text-align: center;
+}
+.tree-node.open > .tree-row .tree-chevron { transform: rotate(90deg); }
+.tree-name { font-size: 13px; font-weight: 600; flex: 1; }
+.tree-count {
+    font-size: 11px; color: var(--muted); background: var(--border);
+    padding: 1px 8px; border-radius: 10px;
+}
+.tree-remove {
+    background: none; border: none; color: var(--danger); cursor: pointer;
+    font-size: 15px; padding: 0 4px; opacity: 0.5; transition: opacity 0.15s;
+}
+.tree-remove:hover { opacity: 1; }
+.tree-body {
+    display: none; padding: 6px 12px 10px 36px;
+    border-top: 1px solid var(--border); background: rgba(0,0,0,0.15);
+}
+.tree-node.open > .tree-body { display: block; }
 .actions-bar {
     display: flex; gap: 8px; margin-top: 20px; padding-top: 16px;
     border-top: 1px solid var(--border);
+}
+.chart-card.step-skip { border-left: 3px solid #dc2626; }
+.chart-card.step-match { border-left: 3px solid #16a34a; }
+.chart-card.step-fallback { border-left: 3px solid #2563eb; }
+.step-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 20px; height: 20px; border-radius: 50%; font-size: 10px; font-weight: 700;
+    margin-right: 6px; vertical-align: middle; flex-shrink: 0;
+}
+.step-badge.skip { background: #7f1d1d; color: #fca5a5; }
+.step-badge.match { background: #14532d; color: #86efac; }
+.step-badge.fallback { background: #1e3a5f; color: #93c5fd; }
+.pipeline { display: flex; align-items: stretch; gap: 0; overflow-x: auto; padding: 4px 0; }
+.pipe-step {
+    display: flex; flex-direction: column; align-items: center; text-align: center;
+    padding: 10px 14px; min-width: 110px; flex: 1; position: relative;
+}
+.pipe-step .pipe-num {
+    width: 24px; height: 24px; border-radius: 50%; font-size: 11px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; margin-bottom: 6px;
+    flex-shrink: 0;
+}
+.pipe-step .pipe-label { font-size: 11px; font-weight: 600; line-height: 1.3; }
+.pipe-step .pipe-desc { font-size: 10px; color: var(--muted); margin-top: 3px; line-height: 1.3; }
+.pipe-step.skip .pipe-num { background: #7f1d1d; color: #fca5a5; }
+.pipe-step.skip { border-bottom: 2px solid #dc2626; }
+.pipe-step.match .pipe-num { background: #14532d; color: #86efac; }
+.pipe-step.match { border-bottom: 2px solid #16a34a; }
+.pipe-step.fallback .pipe-num { background: #1e3a5f; color: #93c5fd; }
+.pipe-step.fallback { border-bottom: 2px solid #2563eb; }
+.pipe-step.end .pipe-num { background: var(--border); color: var(--muted); }
+.pipe-step.end { border-bottom: 2px solid var(--border); }
+.pipe-arrow {
+    display: flex; align-items: center; color: var(--muted); font-size: 14px;
+    padding: 0; flex-shrink: 0; margin-top: -10px;
 }
 </style>
 </head>
@@ -560,6 +623,55 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
     <div class="controls">
         <button class="btn btn-primary" onclick="saveAll()">Save Settings</button>
         <button class="btn btn-danger" onclick="resetAll()">Reset to Defaults</button>
+    </div>
+</div>
+
+<!-- Sorting Pipeline -->
+<div class="chart-card">
+    <h3>Sorting Priority</h3>
+    <p style="font-size:12px;color:var(--muted);margin:4px 0 12px">Files are evaluated in this order &mdash; first match wins.</p>
+    <div class="pipeline">
+        <div class="pipe-step skip">
+            <span class="pipe-num">1</span>
+            <span class="pipe-label">Temp File</span>
+            <span class="pipe-desc">.crdownload, .part, .tmp</span>
+        </div>
+        <span class="pipe-arrow">&#9654;</span>
+        <div class="pipe-step skip">
+            <span class="pipe-num">2</span>
+            <span class="pipe-label">Dotfile</span>
+            <span class="pipe-desc">.hidden files</span>
+        </div>
+        <span class="pipe-arrow">&#9654;</span>
+        <div class="pipe-step skip">
+            <span class="pipe-num">3</span>
+            <span class="pipe-label">Ignore List</span>
+            <span class="pipe-desc">Glob patterns to skip</span>
+        </div>
+        <span class="pipe-arrow">&#9654;</span>
+        <div class="pipe-step match">
+            <span class="pipe-num">4</span>
+            <span class="pipe-label">Client Match</span>
+            <span class="pipe-desc">Keyword &#8594; client folder + sub-category</span>
+        </div>
+        <span class="pipe-arrow">&#9654;</span>
+        <div class="pipe-step match">
+            <span class="pipe-num">5</span>
+            <span class="pipe-label">Regex Rules</span>
+            <span class="pipe-desc">Pattern &#8594; custom folder</span>
+        </div>
+        <span class="pipe-arrow">&#9654;</span>
+        <div class="pipe-step fallback">
+            <span class="pipe-num">6</span>
+            <span class="pipe-label">Extension</span>
+            <span class="pipe-desc">Category by file type</span>
+        </div>
+        <span class="pipe-arrow">&#9654;</span>
+        <div class="pipe-step end">
+            <span class="pipe-num">7</span>
+            <span class="pipe-label">Unknown</span>
+            <span class="pipe-desc">Left in place</span>
+        </div>
     </div>
 </div>
 
@@ -580,36 +692,9 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
     </div>
 </div>
 
-<!-- Categories -->
-<div class="chart-card">
-    <div class="section-header">
-        <h3>File Categories</h3>
-        <button class="btn btn-sm btn-primary" onclick="addCategory()">+ Add Category</button>
-    </div>
-    <div id="catContainer"></div>
-</div>
-
-<!-- Clients -->
-<div class="chart-card">
-    <div class="section-header">
-        <h3>Clients</h3>
-        <button class="btn btn-sm btn-primary" onclick="addClient()">+ Add Client</button>
-    </div>
-    <div id="clientContainer"></div>
-</div>
-
-<!-- Client Sub-categories -->
-<div class="chart-card">
-    <div class="section-header">
-        <h3>Client Sub-categories</h3>
-        <button class="btn btn-sm btn-primary" onclick="addSubcat()">+ Add Sub-category</button>
-    </div>
-    <div id="subcatContainer"></div>
-</div>
-
-<!-- Ignore List -->
-<div class="chart-card">
-    <h3>Ignore List</h3>
+<!-- Step 3: Ignore List -->
+<div class="chart-card step-skip">
+    <h3><span class="step-badge skip">3</span>Ignore List</h3>
     <div class="tag-list" id="ignoreList"></div>
     <div class="add-row">
         <input type="text" id="ignoreInput" placeholder="Pattern (e.g. *.bak, desktop.ini)" onkeydown="if(event.key==='Enter')addIgnore()">
@@ -617,16 +702,43 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
     </div>
 </div>
 
-<!-- Regex Rules -->
-<div class="chart-card">
+<!-- Step 4: Clients -->
+<div class="chart-card step-match">
     <div class="section-header">
-        <h3>Regex Rules</h3>
+        <h3><span class="step-badge match">4</span>Clients</h3>
+        <button class="btn btn-sm btn-primary" onclick="addClient()">+ Add Client</button>
+    </div>
+    <div id="clientContainer"></div>
+</div>
+
+<!-- Step 4: Client Sub-categories -->
+<div class="chart-card step-match">
+    <div class="section-header">
+        <h3><span class="step-badge match">4</span>Client Sub-categories</h3>
+        <button class="btn btn-sm btn-primary" onclick="addSubcat()">+ Add Sub-category</button>
+    </div>
+    <div id="subcatContainer"></div>
+</div>
+
+<!-- Step 5: Regex Rules -->
+<div class="chart-card step-match">
+    <div class="section-header">
+        <h3><span class="step-badge match">5</span>Regex Rules</h3>
         <button class="btn btn-sm btn-primary" onclick="addRegex()">+ Add Rule</button>
     </div>
     <table id="regexTable">
         <thead><tr><th>Pattern</th><th>Folder</th><th style="width:40px"></th></tr></thead>
         <tbody id="regexBody"></tbody>
     </table>
+</div>
+
+<!-- Step 6: File Categories -->
+<div class="chart-card step-fallback">
+    <div class="section-header">
+        <h3><span class="step-badge fallback">6</span>File Categories</h3>
+        <button class="btn btn-sm btn-primary" onclick="addCategory()">+ Add Category</button>
+    </div>
+    <div class="tree" id="catContainer"></div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -645,26 +757,44 @@ function escapeHtml(s) { const el = document.createElement('div'); el.textConten
 function makeTag(text, onRemove) {
     const t = document.createElement('span');
     t.className = 'tag';
-    t.innerHTML = escapeHtml(text) + '<button onclick="this.parentElement.remove()">&times;</button>';
-    if (onRemove) t.querySelector('button').addEventListener('click', onRemove);
+    t.innerHTML = escapeHtml(text) + '<button>&times;</button>';
+    t.querySelector('button').addEventListener('click', function() {
+        const node = t.closest('.tree-node');
+        t.remove();
+        if (node) { const countEl = node.querySelector('.tree-count'); if (countEl) { const n = node.querySelectorAll('.tag-list .tag').length; countEl.textContent = n + ' ext' + (n !== 1 ? 's' : ''); } }
+        if (onRemove) onRemove();
+    });
     return t;
 }
 
 // --- Render functions ---
 
+function toggleTreeNode(el) {
+    const node = el.closest('.tree-node');
+    node.classList.toggle('open');
+}
+
 function renderCategories() {
     const c = document.getElementById('catContainer');
     c.innerHTML = '';
-    for (const [name, exts] of Object.entries(S.categories)) {
-        const card = document.createElement('div');
-        card.className = 'cat-card';
-        card.dataset.name = name;
-        card.innerHTML = '<div class="cat-header"><strong>' + escapeHtml(name) + '</strong>'
-            + '<button class="btn btn-sm btn-danger" onclick="removeCategory(\'' + escapeHtml(name) + '\')">&times;</button></div>'
-            + '<div class="tag-list" id="cat-tags-' + escapeHtml(name) + '"></div>'
-            + '<div class="add-row"><input type="text" placeholder=".ext" onkeydown="if(event.key===\'Enter\')addExt(this,\'' + escapeHtml(name) + '\')"><button class="btn btn-sm btn-primary" onclick="addExt(this.previousElementSibling,\'' + escapeHtml(name) + '\')">Add</button></div>';
-        c.appendChild(card);
-        const tagList = card.querySelector('.tag-list');
+    const entries = Object.entries(S.categories);
+    for (const [name, exts] of entries) {
+        const node = document.createElement('div');
+        node.className = 'tree-node';
+        node.dataset.name = name;
+        const eName = escapeHtml(name);
+        node.innerHTML = '<div class="tree-row" onclick="toggleTreeNode(this)">'
+            + '<span class="tree-chevron">&#9654;</span>'
+            + '<span class="tree-name">' + eName + '</span>'
+            + '<span class="tree-count">' + exts.length + ' ext' + (exts.length !== 1 ? 's' : '') + '</span>'
+            + '<button class="tree-remove" onclick="event.stopPropagation();removeCategory(\'' + eName + '\')">&times;</button>'
+            + '</div>'
+            + '<div class="tree-body">'
+            + '<div class="tag-list"></div>'
+            + '<div class="add-row"><input type="text" placeholder=".ext" onkeydown="if(event.key===\'Enter\')addExt(this,\'' + eName + '\')"><button class="btn btn-sm btn-primary" onclick="addExt(this.previousElementSibling,\'' + eName + '\')">Add</button></div>'
+            + '</div>';
+        c.appendChild(node);
+        const tagList = node.querySelector('.tag-list');
         exts.forEach(ext => tagList.appendChild(makeTag(ext)));
     }
 }
@@ -744,9 +874,9 @@ function collectState() {
     data.notifications_enabled = document.getElementById('cfgNotify').checked;
 
     data.categories = {};
-    document.querySelectorAll('#catContainer .cat-card').forEach(card => {
-        const name = card.dataset.name;
-        const exts = Array.from(card.querySelectorAll('.tag-list .tag')).map(t => t.textContent.replace('×', '').trim());
+    document.querySelectorAll('#catContainer .tree-node').forEach(node => {
+        const name = node.dataset.name;
+        const exts = Array.from(node.querySelectorAll('.tag-list .tag')).map(t => t.textContent.replace('×', '').trim());
         data.categories[name] = exts;
     });
 
@@ -784,9 +914,12 @@ function addExt(input, catName) {
     const v = input.value.trim();
     if (!v) return;
     const ext = v.startsWith('.') ? v : '.' + v;
-    const tagList = input.closest('.cat-card').querySelector('.tag-list');
+    const node = input.closest('.tree-node') || input.closest('.cat-card');
+    const tagList = node.querySelector('.tag-list');
     tagList.appendChild(makeTag(ext));
     input.value = '';
+    const countEl = node.querySelector('.tree-count');
+    if (countEl) { const n = node.querySelectorAll('.tag-list .tag').length; countEl.textContent = n + ' ext' + (n !== 1 ? 's' : ''); }
 }
 
 function addCategory() {

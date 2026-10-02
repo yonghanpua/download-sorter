@@ -110,8 +110,10 @@ Opens a dashboard at `http://localhost:5000` with:
 - File existence status indicator (exists/missing)
 - Auto-refreshes every 10 seconds
 - **Settings page** (`/settings`) — edit all config from the browser:
+  - Sorting priority pipeline — visual diagram showing the 7-step evaluation order
   - General settings (downloads folder, debounce delay)
-  - Categories (add/remove categories and extensions)
+  - Sections ordered and color-coded to match sorting priority (red=skip, green=match, blue=fallback)
+  - Collapsible tree view for file categories with extension counts
   - Clients (add/remove clients and keywords)
   - Client sub-categories (keywords + extensions per sub-category)
   - Ignore list (glob patterns)
