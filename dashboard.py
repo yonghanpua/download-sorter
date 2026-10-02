@@ -331,7 +331,7 @@ input[type="checkbox"] { cursor: pointer; accent-color: var(--primary); }
     <div class="controls">
         <button class="btn btn-primary" id="btnWatcher" onclick="toggleWatcher()">Start Watcher</button>
         <button class="btn btn-success" onclick="doSweep()">Sweep Now</button>
-        <a href="/settings" class="btn btn-outline">Settings</a>
+        <a href="/settings" class="btn" title="Settings" style="font-size:16px;padding:6px 10px;background:var(--card);color:var(--text)">&#9881;</a>
     </div>
 </div>
 
@@ -439,6 +439,8 @@ async function undoSelected(){
     document.getElementById('selectAll').checked=false; refresh();
 }
 function initCharts(){
+    Chart.defaults.color='#a1a1aa';
+    Chart.defaults.borderColor='#27272a';
     const o={animation:false};
     catChart=new Chart(document.getElementById('catChart'),{type:'doughnut',data:{labels:[],datasets:[{data:[],backgroundColor:[]}]},options:{...o,responsive:true,plugins:{legend:{position:'bottom',labels:{boxWidth:12,padding:8,font:{size:11}}}}}});
     hourChart=new Chart(document.getElementById('hourChart'),{type:'bar',data:{labels:Array.from({length:24},(_,i)=>String(i).padStart(2,'0')+':00'),datasets:[{data:new Array(24).fill(0),backgroundColor:'#2563eb88',borderRadius:4}]},options:{...o,responsive:true,plugins:{legend:{display:false}},scales:{x:{grid:{display:false}},y:{beginAtZero:true}}}});
