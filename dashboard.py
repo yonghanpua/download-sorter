@@ -329,7 +329,11 @@ input[type="checkbox"] { cursor: pointer; accent-color: var(--primary); }
 </div>
 
 <div class="chart-card">
-    <div class="section-header"><h3>Move History</h3></div>
+    <div class="section-header">
+        <h3>Move History</h3>
+        <input type="text" id="historySearch" placeholder="Search files..." oninput="filterHistory()"
+            style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;width:220px">
+    </div>
     <div class="undo-bar" id="undoBar">
         <input type="checkbox" id="selectAll" onchange="toggleSelectAll()">
         <span><span class="selected-count" id="selectedCount">0</span> selected</span>
@@ -349,6 +353,7 @@ const COLORS = ['#2563eb','#16a34a','#ea580c','#8b5cf6','#ec4899','#0891b2','#d9
 let catChart = null, hourChart = null, dailyChart = null;
 let watching = false;
 let currentDate = '';
+let historyItems = [];
 
 function showToast(msg) {
     const t = document.getElementById('toast');
@@ -422,8 +427,14 @@ async function refresh(){
     catChart.data.datasets[0].backgroundColor=COLORS.slice(0,Object.keys(d.categories).length); catChart.update();
     hourChart.data.datasets[0].data=Array.from({length:24},(_,i)=>d.hourly[i]||0); hourChart.update();
     dailyChart.data.labels=Object.keys(d.daily); dailyChart.data.datasets[0].data=Object.values(d.daily); dailyChart.update();
+    historyItems=h.items;
+    renderHistory();
+}
+function renderHistory(){
+    const q=(document.getElementById('historySearch').value||'').toLowerCase();
+    const filtered=q?historyItems.filter(i=>i.file.toLowerCase().includes(q)||i.dest_display.toLowerCase().includes(q)):historyItems;
     const tbody=document.getElementById('historyBody');
-    tbody.innerHTML=h.items.map(item=>{
+    tbody.innerHTML=filtered.map(item=>{
         const gone=!item.exists;
         return '<tr class="'+(gone?'row-gone':'')+'"><td><input type="checkbox" class="row-cb" data-id="'+item.id+'"'
             +(gone?' disabled title="File no longer exists"':'')+' onchange="updateUndoBar()"></td>'
@@ -434,6 +445,7 @@ async function refresh(){
     }).join('');
     updateUndoBar();
 }
+function filterHistory(){renderHistory();}
 initCharts(); refresh(); setInterval(refresh,10000);
 </script>
 </body>

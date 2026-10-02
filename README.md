@@ -89,6 +89,7 @@ Opens a dashboard at `http://localhost:5000` with:
 - Start/stop the watcher via Task Scheduler
 - Sweep trigger button
 - Move history table with checkboxes for selective undo
+- Search/filter on history table by filename or destination
 - File existence status indicator (exists/missing)
 - Auto-refreshes every 10 seconds
 - **Settings page** (`/settings`) — edit all config from the browser:
