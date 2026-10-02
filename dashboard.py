@@ -152,8 +152,10 @@ def api_stats():
 @app.route("/api/history")
 def api_history():
     date_filter = request.args.get("date") or None
-    items = db.get_history(date_filter)
-    for item in items:
+    page = int(request.args.get("page", 1))
+    per_page = int(request.args.get("per_page", 50))
+    result = db.get_history(date_filter, page, per_page)
+    for item in result["items"]:
         dest = Path(item["dest"])
         item["file"] = Path(item["src"]).name
         try:
@@ -161,7 +163,7 @@ def api_history():
         except ValueError:
             item["dest_display"] = str(dest)
         item["exists"] = dest.exists()
-    return jsonify({"items": items})
+    return jsonify(result)
 
 
 @app.route("/api/sweep", methods=["POST"])
@@ -291,6 +293,18 @@ input[type="checkbox"] { cursor: pointer; accent-color: var(--primary); }
 }
 .undo-bar.visible { display: flex; }
 .selected-count { font-weight: 600; color: var(--primary); }
+.pagination {
+    display: flex; justify-content: center; align-items: center;
+    gap: 4px; padding: 12px 0 4px; font-size: 13px;
+}
+.pagination button {
+    padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--card); color: var(--text); cursor: pointer; font-size: 12px;
+}
+.pagination button:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+.pagination button:disabled { opacity: 0.4; cursor: not-allowed; }
+.pagination button.active { background: var(--primary); color: white; border-color: var(--primary); }
+.pagination .page-info { color: var(--muted); font-size: 12px; margin: 0 8px; }
 </style>
 </head>
 <body>
@@ -343,6 +357,7 @@ input[type="checkbox"] { cursor: pointer; accent-color: var(--primary); }
         <thead><tr><th style="width:30px"></th><th>Time</th><th>File</th><th>Moved To</th><th>Status</th></tr></thead>
         <tbody id="historyBody"></tbody>
     </table>
+    <div class="pagination" id="pagination"></div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -354,6 +369,9 @@ let catChart = null, hourChart = null, dailyChart = null;
 let watching = false;
 let currentDate = '';
 let historyItems = [];
+let currentPage = 1;
+let totalPages = 1;
+let totalItems = 0;
 
 function showToast(msg) {
     const t = document.getElementById('toast');
@@ -387,7 +405,7 @@ function updateWatcherBtn() {
 }
 function truncate(s,n){return s.length>n?s.slice(0,n)+'...':s;}
 function escapeHtml(s){const el=document.createElement('div');el.textContent=s;return el.innerHTML;}
-function onDateChange(){currentDate=document.getElementById('dateFilter').value;refresh();}
+function onDateChange(){currentDate=document.getElementById('dateFilter').value;currentPage=1;refresh();}
 function getCheckedIds(){return Array.from(document.querySelectorAll('.row-cb:checked')).map(cb=>parseInt(cb.dataset.id));}
 function updateUndoBar(){
     const n=getCheckedIds().length;
@@ -414,7 +432,8 @@ function initCharts(){
 }
 async function refresh(){
     const q=currentDate?'?date='+currentDate:'';
-    const [sr,hr]=await Promise.all([fetch('/api/stats'+q),fetch('/api/history'+q)]);
+    const hq=q?q+'&':'?';
+    const [sr,hr]=await Promise.all([fetch('/api/stats'+q),fetch('/api/history'+hq+'page='+currentPage)]);
     const d=await sr.json(), h=await hr.json();
     watching=d.watching; updateWatcherBtn();
     document.getElementById('sMoved').textContent=d.total_moved;
@@ -428,7 +447,10 @@ async function refresh(){
     hourChart.data.datasets[0].data=Array.from({length:24},(_,i)=>d.hourly[i]||0); hourChart.update();
     dailyChart.data.labels=Object.keys(d.daily); dailyChart.data.datasets[0].data=Object.values(d.daily); dailyChart.update();
     historyItems=h.items;
+    totalPages=h.pages;
+    totalItems=h.total;
     renderHistory();
+    renderPagination();
 }
 function renderHistory(){
     const q=(document.getElementById('historySearch').value||'').toLowerCase();
@@ -446,6 +468,23 @@ function renderHistory(){
     updateUndoBar();
 }
 function filterHistory(){renderHistory();}
+function goToPage(p){if(p<1||p>totalPages||p===currentPage)return;currentPage=p;refresh();}
+function renderPagination(){
+    const el=document.getElementById('pagination');
+    if(totalPages<=1){el.innerHTML='';return;}
+    let html='<button onclick="goToPage(1)"'+(currentPage===1?' disabled':'')+'>&#171;</button>';
+    html+='<button onclick="goToPage(currentPage-1)"'+(currentPage===1?' disabled':'')+'>&#8249;</button>';
+    const start=Math.max(1,currentPage-2),end=Math.min(totalPages,currentPage+2);
+    if(start>1)html+='<span class="page-info">...</span>';
+    for(let i=start;i<=end;i++){
+        html+='<button onclick="goToPage('+i+')"'+(i===currentPage?' class="active"':'')+'>'+i+'</button>';
+    }
+    if(end<totalPages)html+='<span class="page-info">...</span>';
+    html+='<button onclick="goToPage(currentPage+1)"'+(currentPage===totalPages?' disabled':'')+'>&#8250;</button>';
+    html+='<button onclick="goToPage(totalPages)"'+(currentPage===totalPages?' disabled':'')+'>&#187;</button>';
+    html+='<span class="page-info">'+totalItems+' items</span>';
+    el.innerHTML=html;
+}
 initCharts(); refresh(); setInterval(refresh,10000);
 </script>
 </body>

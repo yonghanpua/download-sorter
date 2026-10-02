@@ -146,18 +146,30 @@ def get_stats(date_filter: str | None = None) -> dict:
         }
 
 
-def get_history(date_filter: str | None = None) -> list[dict]:
+def get_history(date_filter: str | None = None, page: int = 1,
+                 per_page: int = 50) -> dict:
     with _connect() as conn:
         dc = ""
         dp: list = []
         if date_filter:
             dc = "AND date(timestamp) = ?"
             dp = [date_filter]
+        total = conn.execute(
+            f"SELECT COUNT(*) FROM moves WHERE undone = 0 {dc}", dp
+        ).fetchone()[0]
+        offset = (page - 1) * per_page
         rows = conn.execute(
             f"SELECT id, timestamp, src, dest, category, undone "
-            f"FROM moves WHERE undone = 0 {dc} ORDER BY id DESC LIMIT 200", dp
+            f"FROM moves WHERE undone = 0 {dc} ORDER BY id DESC "
+            f"LIMIT ? OFFSET ?", dp + [per_page, offset]
         ).fetchall()
-        return [dict(r) for r in rows]
+        return {
+            "items": [dict(r) for r in rows],
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "pages": (total + per_page - 1) // per_page if total else 1,
+        }
 
 
 def get_setting(key: str):
