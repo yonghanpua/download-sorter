@@ -1,5 +1,6 @@
-"""SQLite database for fileSorter — move history and sweep events."""
+"""SQLite database for fileSorter — move history, sweep events, and settings."""
 
+import json
 import re
 import sqlite3
 from datetime import datetime
@@ -23,6 +24,10 @@ CREATE TABLE IF NOT EXISTS sweeps (
 );
 CREATE INDEX IF NOT EXISTS idx_moves_timestamp ON moves(timestamp);
 CREATE INDEX IF NOT EXISTS idx_moves_undone    ON moves(undone);
+CREATE TABLE IF NOT EXISTS settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 """
 
 
@@ -153,6 +158,33 @@ def get_history(date_filter: str | None = None) -> list[dict]:
             f"FROM moves WHERE undone = 0 {dc} ORDER BY id DESC LIMIT 200", dp
         ).fetchall()
         return [dict(r) for r in rows]
+
+
+def get_setting(key: str):
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT value FROM settings WHERE key = ?", (key,)
+        ).fetchone()
+        return json.loads(row[0]) if row else None
+
+
+def save_setting(key: str, value):
+    with _connect() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+            (key, json.dumps(value)),
+        )
+
+
+def delete_setting(key: str):
+    with _connect() as conn:
+        conn.execute("DELETE FROM settings WHERE key = ?", (key,))
+
+
+def get_all_settings() -> dict:
+    with _connect() as conn:
+        rows = conn.execute("SELECT key, value FROM settings").fetchall()
+        return {r[0]: json.loads(r[1]) for r in rows}
 
 
 def migrate_from_logs(log_dir: Path, downloads_folder: Path) -> dict:

@@ -1,3 +1,4 @@
+import copy
 from pathlib import Path
 
 DOWNLOADS_FOLDER = Path.home() / "Downloads"
@@ -10,22 +11,13 @@ TEMP_EXTENSIONS = {
 }
 
 # --- Ignore list ---
-# Files matching these are never sorted. Supports:
-#   - Exact filenames:  "desktop.ini"
-#   - Glob wildcards:   "*.log", "temp_*"
 IGNORE_LIST: list[str] = [
     "desktop.ini",
     "Thumbs.db",
     ".DS_Store",
-    # "important_file.txt",
-    # "temp_*",
-    # "*.bak",
 ]
 
 # --- Regex rules (optional) ---
-# Pattern -> folder. Checked before extension-based sorting.
-# Files matching a regex go to that folder. Leave empty to disable.
-# Example: files like "INV-2024-001.pdf" -> "Invoices" folder
 REGEX_RULES: dict[str, str] = {
     # r"^INV-\d{4}-\d+": "Invoices",
     # r"^RPT-\d+": "Reports",
@@ -69,21 +61,11 @@ CATEGORIES = {
     },
 }
 
-EXTENSION_MAP: dict[str, str] = {}
-for _category, _extensions in CATEGORIES.items():
-    for _ext in _extensions:
-        EXTENSION_MAP[_ext] = _category
-
 # --- Client-based sorting ---
-# Maps client folder name -> list of keywords to match in filenames (case-insensitive)
 CLIENTS: dict[str, list[str]] = {
     "AKSS": ["AKSS", "AKS24"],
-    # "COKE": ["COKE", "CK-"],
-    # "Wilmar": ["Wilmar", "WIL"],
 }
 
-# Sub-categories within each client folder
-# Keywords are checked first (case-insensitive), then extension as fallback
 CLIENT_SUBCATEGORIES: dict[str, dict] = {
     "01. Commercial": {
         "keywords": ["commercial", "proposal", "quote", "invoice", "contract", "tender"],
@@ -102,12 +84,86 @@ CLIENT_SUBCATEGORIES: dict[str, dict] = {
     },
 }
 
-CLIENT_KEYWORD_MAP: dict[str, str] = {}
-for _subcategory, _rules in CLIENT_SUBCATEGORIES.items():
-    for _kw in _rules.get("keywords", []):
-        CLIENT_KEYWORD_MAP[_kw.lower()] = _subcategory
+# --- Derived maps (auto-built) ---
 
+EXTENSION_MAP: dict[str, str] = {}
+CLIENT_KEYWORD_MAP: dict[str, str] = {}
 CLIENT_EXTENSION_MAP: dict[str, str] = {}
-for _subcategory, _rules in CLIENT_SUBCATEGORIES.items():
-    for _ext in _rules.get("extensions", set()):
-        CLIENT_EXTENSION_MAP[_ext] = _subcategory
+
+
+def _rebuild_maps():
+    global EXTENSION_MAP, CLIENT_KEYWORD_MAP, CLIENT_EXTENSION_MAP
+    EXTENSION_MAP = {}
+    for cat, exts in CATEGORIES.items():
+        for ext in exts:
+            EXTENSION_MAP[ext] = cat
+    CLIENT_KEYWORD_MAP = {}
+    for subcat, rules in CLIENT_SUBCATEGORIES.items():
+        for kw in rules.get("keywords", []):
+            CLIENT_KEYWORD_MAP[kw.lower()] = subcat
+    CLIENT_EXTENSION_MAP = {}
+    for subcat, rules in CLIENT_SUBCATEGORIES.items():
+        for ext in rules.get("extensions", set()):
+            CLIENT_EXTENSION_MAP[ext] = subcat
+
+
+_rebuild_maps()
+
+# Snapshot defaults for reset
+_DEFAULTS = {
+    "downloads_folder": str(DOWNLOADS_FOLDER),
+    "debounce_seconds": DEBOUNCE_SECONDS,
+    "categories": {k: sorted(v) for k, v in CATEGORIES.items()},
+    "clients": copy.deepcopy(CLIENTS),
+    "client_subcategories": {
+        k: {"keywords": list(v["keywords"]), "extensions": sorted(v["extensions"])}
+        for k, v in CLIENT_SUBCATEGORIES.items()
+    },
+    "ignore_list": list(IGNORE_LIST),
+    "regex_rules": dict(REGEX_RULES),
+}
+
+
+def load_overrides():
+    """Reset to code defaults, then apply any DB overrides."""
+    global DOWNLOADS_FOLDER, DEBOUNCE_SECONDS
+    global CATEGORIES, CLIENTS, CLIENT_SUBCATEGORIES
+    global IGNORE_LIST, REGEX_RULES
+
+    DOWNLOADS_FOLDER = Path(_DEFAULTS["downloads_folder"])
+    DEBOUNCE_SECONDS = _DEFAULTS["debounce_seconds"]
+    CATEGORIES = {k: set(v) for k, v in _DEFAULTS["categories"].items()}
+    CLIENTS = copy.deepcopy(_DEFAULTS["clients"])
+    CLIENT_SUBCATEGORIES = {
+        k: {"keywords": list(v["keywords"]), "extensions": set(v["extensions"])}
+        for k, v in _DEFAULTS["client_subcategories"].items()
+    }
+    IGNORE_LIST = list(_DEFAULTS["ignore_list"])
+    REGEX_RULES = dict(_DEFAULTS["regex_rules"])
+
+    try:
+        import db
+        overrides = db.get_all_settings()
+    except Exception:
+        _rebuild_maps()
+        return
+
+    if "downloads_folder" in overrides:
+        DOWNLOADS_FOLDER = Path(overrides["downloads_folder"])
+    if "debounce_seconds" in overrides:
+        DEBOUNCE_SECONDS = overrides["debounce_seconds"]
+    if "categories" in overrides:
+        CATEGORIES = {k: set(v) for k, v in overrides["categories"].items()}
+    if "clients" in overrides:
+        CLIENTS = overrides["clients"]
+    if "client_subcategories" in overrides:
+        CLIENT_SUBCATEGORIES = {
+            k: {"keywords": v.get("keywords", []), "extensions": set(v.get("extensions", []))}
+            for k, v in overrides["client_subcategories"].items()
+        }
+    if "ignore_list" in overrides:
+        IGNORE_LIST = overrides["ignore_list"]
+    if "regex_rules" in overrides:
+        REGEX_RULES = overrides["regex_rules"]
+
+    _rebuild_maps()
