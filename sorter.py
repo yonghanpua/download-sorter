@@ -4,50 +4,41 @@ import re
 import shutil
 from pathlib import Path
 
+import config
 import db
-from config import (
-    CLIENTS,
-    CLIENT_EXTENSION_MAP,
-    CLIENT_KEYWORD_MAP,
-    DOWNLOADS_FOLDER,
-    EXTENSION_MAP,
-    IGNORE_LIST,
-    REGEX_RULES,
-    TEMP_EXTENSIONS,
-)
 
 log = logging.getLogger("fileSorter")
 
 
 def is_temp_file(path: Path) -> bool:
-    return path.suffix.lower() in TEMP_EXTENSIONS
+    return path.suffix.lower() in config.TEMP_EXTENSIONS
 
 
 def is_ignored(path: Path) -> bool:
     name = path.name
-    for pattern in IGNORE_LIST:
+    for pattern in config.IGNORE_LIST:
         if fnmatch.fnmatch(name, pattern) or fnmatch.fnmatch(name.lower(), pattern.lower()):
             return True
     return False
 
 
 def get_regex_category(path: Path) -> str | None:
-    if not REGEX_RULES:
+    if not config.REGEX_RULES:
         return None
     name = path.name
-    for pattern, folder in REGEX_RULES.items():
+    for pattern, folder in config.REGEX_RULES.items():
         if re.search(pattern, name):
             return folder
     return None
 
 
 def get_category(path: Path) -> str | None:
-    return EXTENSION_MAP.get(path.suffix.lower())
+    return config.EXTENSION_MAP.get(path.suffix.lower())
 
 
 def get_client(path: Path) -> str | None:
     name_lower = path.name.lower()
-    for client, keywords in CLIENTS.items():
+    for client, keywords in config.CLIENTS.items():
         for keyword in keywords:
             if keyword.lower() in name_lower:
                 return client
@@ -56,10 +47,10 @@ def get_client(path: Path) -> str | None:
 
 def get_client_subcategory(path: Path) -> str | None:
     name_lower = path.stem.lower()
-    for keyword, subcategory in CLIENT_KEYWORD_MAP.items():
+    for keyword, subcategory in config.CLIENT_KEYWORD_MAP.items():
         if keyword in name_lower:
             return subcategory
-    return CLIENT_EXTENSION_MAP.get(path.suffix.lower())
+    return config.CLIENT_EXTENSION_MAP.get(path.suffix.lower())
 
 
 def resolve_duplicate(dest: Path) -> Path:
@@ -76,7 +67,9 @@ def resolve_duplicate(dest: Path) -> Path:
         counter += 1
 
 
-def sort_file(path: Path, base: Path = DOWNLOADS_FOLDER) -> Path | None:
+def sort_file(path: Path, base: Path = None) -> Path | None:
+    if base is None:
+        base = config.DOWNLOADS_FOLDER
     if not path.is_file():
         return None
     if is_temp_file(path):
@@ -178,7 +171,9 @@ def undo_selected(move_ids: list[int]) -> int:
     return undone
 
 
-def sweep(base: Path = DOWNLOADS_FOLDER) -> int:
+def sweep(base: Path = None) -> int:
+    if base is None:
+        base = config.DOWNLOADS_FOLDER
     count = 0
     for item in list(base.iterdir()):
         if item.is_file():

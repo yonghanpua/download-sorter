@@ -4,8 +4,8 @@ import logging
 import sys
 from pathlib import Path
 
+import config
 import db
-from config import DOWNLOADS_FOLDER
 
 
 class DailyLogHandler(logging.Handler):
@@ -62,8 +62,8 @@ def main():
     parser.add_argument(
         "--folder",
         type=Path,
-        default=DOWNLOADS_FOLDER,
-        help=f"Folder to sort (default: {DOWNLOADS_FOLDER})",
+        default=None,
+        help="Folder to sort (default: ~/Downloads)",
     )
     parser.add_argument(
         "--log-dir",
@@ -80,6 +80,9 @@ def main():
     args = parser.parse_args()
 
     db.init_db()
+    config.load_overrides()
+    if args.folder is None:
+        args.folder = config.DOWNLOADS_FOLDER
     setup_logging(args.log_dir)
     log = logging.getLogger("fileSorter")
 

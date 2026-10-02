@@ -5,14 +5,16 @@ from pathlib import Path
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
-from config import DEBOUNCE_SECONDS, DOWNLOADS_FOLDER
+import config
 from sorter import is_temp_file, sort_file
 
 log = logging.getLogger("fileSorter")
 
 
 class DownloadHandler(FileSystemEventHandler):
-    def __init__(self, base: Path = DOWNLOADS_FOLDER):
+    def __init__(self, base: Path = None):
+        if base is None:
+            base = config.DOWNLOADS_FOLDER
         self._base = base
         self._timers: dict[str, threading.Timer] = {}
         self._lock = threading.Lock()
@@ -22,7 +24,7 @@ class DownloadHandler(FileSystemEventHandler):
         with self._lock:
             if key in self._timers:
                 self._timers[key].cancel()
-            timer = threading.Timer(DEBOUNCE_SECONDS, self._process, args=[path])
+            timer = threading.Timer(config.DEBOUNCE_SECONDS, self._process, args=[path])
             timer.daemon = True
             self._timers[key] = timer
             timer.start()
@@ -46,7 +48,9 @@ class DownloadHandler(FileSystemEventHandler):
             self._schedule(dest)
 
 
-def watch(base: Path = DOWNLOADS_FOLDER):
+def watch(base: Path = None):
+    if base is None:
+        base = config.DOWNLOADS_FOLDER
     observer = Observer()
     observer.schedule(DownloadHandler(base), str(base), recursive=False)
     observer.start()

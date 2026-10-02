@@ -1,5 +1,6 @@
 import pytest
 
+import config
 import db
 import sorter
 from sorter import (
@@ -27,37 +28,37 @@ def _temp_db(tmp_path, monkeypatch):
 
 class TestIsIgnored:
     def test_exact_match(self, monkeypatch):
-        monkeypatch.setattr(sorter, "IGNORE_LIST", ["desktop.ini"])
+        monkeypatch.setattr(config, "IGNORE_LIST", ["desktop.ini"])
         from pathlib import Path
         assert is_ignored(Path("C:/Downloads/desktop.ini")) is True
 
     def test_glob_wildcard(self, monkeypatch):
-        monkeypatch.setattr(sorter, "IGNORE_LIST", ["*.bak"])
+        monkeypatch.setattr(config, "IGNORE_LIST", ["*.bak"])
         from pathlib import Path
         assert is_ignored(Path("C:/Downloads/data.bak")) is True
 
     def test_prefix_wildcard(self, monkeypatch):
-        monkeypatch.setattr(sorter, "IGNORE_LIST", ["temp_*"])
+        monkeypatch.setattr(config, "IGNORE_LIST", ["temp_*"])
         from pathlib import Path
         assert is_ignored(Path("C:/Downloads/temp_notes.txt")) is True
 
     def test_case_insensitive(self, monkeypatch):
-        monkeypatch.setattr(sorter, "IGNORE_LIST", ["Thumbs.db"])
+        monkeypatch.setattr(config, "IGNORE_LIST", ["Thumbs.db"])
         from pathlib import Path
         assert is_ignored(Path("C:/Downloads/thumbs.db")) is True
 
     def test_no_match(self, monkeypatch):
-        monkeypatch.setattr(sorter, "IGNORE_LIST", ["desktop.ini"])
+        monkeypatch.setattr(config, "IGNORE_LIST", ["desktop.ini"])
         from pathlib import Path
         assert is_ignored(Path("C:/Downloads/report.pdf")) is False
 
     def test_empty_list(self, monkeypatch):
-        monkeypatch.setattr(sorter, "IGNORE_LIST", [])
+        monkeypatch.setattr(config, "IGNORE_LIST", [])
         from pathlib import Path
         assert is_ignored(Path("C:/Downloads/anything.txt")) is False
 
     def test_sort_file_skips_ignored(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(sorter, "IGNORE_LIST", ["desktop.ini"])
+        monkeypatch.setattr(config, "IGNORE_LIST", ["desktop.ini"])
         f = tmp_path / "desktop.ini"
         f.write_text("test")
         assert sort_file(f, tmp_path) is None
@@ -68,27 +69,27 @@ class TestIsIgnored:
 
 class TestGetRegexCategory:
     def test_matches_pattern(self, monkeypatch):
-        monkeypatch.setattr(sorter, "REGEX_RULES", {r"^INV-\d+": "Invoices"})
+        monkeypatch.setattr(config, "REGEX_RULES", {r"^INV-\d+": "Invoices"})
         from pathlib import Path
         assert get_regex_category(Path("C:/Downloads/INV-2024-001.pdf")) == "Invoices"
 
     def test_no_match(self, monkeypatch):
-        monkeypatch.setattr(sorter, "REGEX_RULES", {r"^INV-\d+": "Invoices"})
+        monkeypatch.setattr(config, "REGEX_RULES", {r"^INV-\d+": "Invoices"})
         from pathlib import Path
         assert get_regex_category(Path("C:/Downloads/report.pdf")) is None
 
     def test_empty_rules(self, monkeypatch):
-        monkeypatch.setattr(sorter, "REGEX_RULES", {})
+        monkeypatch.setattr(config, "REGEX_RULES", {})
         from pathlib import Path
         assert get_regex_category(Path("C:/Downloads/anything.pdf")) is None
 
     def test_case_insensitive_flag_in_pattern(self, monkeypatch):
-        monkeypatch.setattr(sorter, "REGEX_RULES", {r"(?i)screenshot": "Screenshots"})
+        monkeypatch.setattr(config, "REGEX_RULES", {r"(?i)screenshot": "Screenshots"})
         from pathlib import Path
         assert get_regex_category(Path("C:/Downloads/Screenshot_2024.png")) == "Screenshots"
 
     def test_sort_file_uses_regex(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(sorter, "REGEX_RULES", {r"^INV-\d+": "Invoices"})
+        monkeypatch.setattr(config, "REGEX_RULES", {r"^INV-\d+": "Invoices"})
         f = tmp_path / "INV-2024-001.pdf"
         f.write_text("test")
         result = sort_file(f, tmp_path)
@@ -96,7 +97,7 @@ class TestGetRegexCategory:
         assert result.exists()
 
     def test_client_takes_priority_over_regex(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(sorter, "REGEX_RULES", {r"report": "Reports"})
+        monkeypatch.setattr(config, "REGEX_RULES", {r"report": "Reports"})
         f = tmp_path / "AKSS_report.pdf"
         f.write_text("test")
         result = sort_file(f, tmp_path)
