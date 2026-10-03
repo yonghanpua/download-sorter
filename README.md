@@ -4,7 +4,8 @@ A Python utility that automatically organizes your Downloads folder by sorting f
 
 ## Features
 
-- **Real-time sorting** — watches your Downloads folder and moves files as they arrive
+- **Multi-folder watching** — watch Downloads, Desktop, or any folder with per-folder rule toggles (ignore list, client match, regex, extension categories)
+- **Real-time sorting** — watches your folders and moves files as they arrive
 - **Batch sweep** — one-command cleanup of all existing files
 - **Smart download handling** — ignores incomplete downloads (`.crdownload`, `.part`, `.tmp`) until finished
 - **Duplicate safety** — auto-renames with `(1)`, `(2)`, etc. instead of overwriting
@@ -120,6 +121,7 @@ Opens a dashboard at `http://localhost:5000` with:
   - Ignore list (glob patterns)
   - Regex rules (pattern → folder) with collapsible cheat sheet for beginners
   - Save All / Reset to Defaults buttons
+  - Watched folders management — add/remove folders, toggle per-folder sorting rules
   - Changes are stored in SQLite and applied at runtime — no restart needed
 
 ### Migrate existing logs

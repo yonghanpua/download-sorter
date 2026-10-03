@@ -68,19 +68,25 @@ def resolve_duplicate(dest: Path) -> Path:
         counter += 1
 
 
-def sort_file(path: Path, base: Path = None) -> Path | None:
+def sort_file(path: Path, base: Path = None, rules: dict = None) -> Path | None:
     if base is None:
         base = config.DOWNLOADS_FOLDER
+    if rules is None:
+        rules = {"ignore_list": True, "client_match": True,
+                 "regex_rules": True, "extension_categories": True}
     if not path.is_file():
         return None
     if is_temp_file(path):
         return None
     if path.name.startswith("."):
         return None
-    if is_ignored(path):
+    if rules.get("ignore_list", True) and is_ignored(path):
         return None
 
-    client = get_client(path)
+    if rules.get("client_match", True):
+        client = get_client(path)
+    else:
+        client = None
     if client:
         subcategory = get_client_subcategory(path)
         if subcategory:
@@ -89,11 +95,16 @@ def sort_file(path: Path, base: Path = None) -> Path | None:
             dest_dir = base / client
         category = client
     else:
-        regex_cat = get_regex_category(path)
+        if rules.get("regex_rules", True):
+            regex_cat = get_regex_category(path)
+        else:
+            regex_cat = None
         if regex_cat:
             dest_dir = base / regex_cat
             category = regex_cat
         else:
+            if not rules.get("extension_categories", True):
+                return None
             cat = get_category(path)
             if cat is None:
                 return None

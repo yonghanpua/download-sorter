@@ -13,10 +13,11 @@ log = logging.getLogger("fileSorter")
 
 
 class DownloadHandler(FileSystemEventHandler):
-    def __init__(self, base: Path = None):
+    def __init__(self, base: Path = None, rules: dict = None):
         if base is None:
             base = config.DOWNLOADS_FOLDER
         self._base = base
+        self._rules = rules
         self._timers: dict[str, threading.Timer] = {}
         self._lock = threading.Lock()
 
@@ -34,7 +35,7 @@ class DownloadHandler(FileSystemEventHandler):
         with self._lock:
             self._timers.pop(str(path), None)
         if path.exists() and not is_temp_file(path):
-            dest = sort_file(path, self._base)
+            dest = sort_file(path, self._base, self._rules)
             if dest:
                 try:
                     category = dest.relative_to(self._base).parts[0]

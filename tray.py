@@ -23,14 +23,14 @@ except ImportError:
 
 log = logging.getLogger("fileSorter")
 
-_observer: Observer | None = None
+_observers: list[Observer] = []
 _observer_lock = threading.Lock()
 _icon: Icon | None = None
 
 
 def is_watching() -> bool:
     with _observer_lock:
-        return _observer is not None and _observer.is_alive()
+        return any(o.is_alive() for o in _observers)
 
 
 def _make_icon(watching: bool) -> Image.Image:
@@ -54,26 +54,33 @@ def _update_icon():
 
 
 def _start_watcher():
-    global _observer
     with _observer_lock:
-        if _observer and _observer.is_alive():
+        if any(o.is_alive() for o in _observers):
             return
-        base = config.DOWNLOADS_FOLDER
-        _observer = Observer()
-        _observer.schedule(DownloadHandler(base), str(base), recursive=False)
-        _observer.start()
-        log.info("Watcher started — watching %s", base)
+        _observers.clear()
+        for wf in config.WATCHED_FOLDERS:
+            if not wf.get("enabled", True):
+                continue
+            base = Path(wf["path"])
+            if not base.is_dir():
+                log.warning("Watched folder does not exist: %s", base)
+                continue
+            obs = Observer()
+            obs.schedule(DownloadHandler(base, wf.get("rules")), str(base), recursive=False)
+            obs.start()
+            _observers.append(obs)
+            log.info("Watcher started — watching %s", base)
     _update_icon()
 
 
 def _stop_watcher():
-    global _observer
     with _observer_lock:
-        if _observer:
-            _observer.stop()
-            _observer.join(timeout=5)
-            _observer = None
-            log.info("Watcher stopped")
+        for obs in _observers:
+            obs.stop()
+        for obs in _observers:
+            obs.join(timeout=5)
+        _observers.clear()
+        log.info("Watcher stopped")
     _update_icon()
 
 

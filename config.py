@@ -6,6 +6,19 @@ DOWNLOADS_FOLDER = Path.home() / "Downloads"
 DEBOUNCE_SECONDS = 3
 NOTIFICATIONS_ENABLED = True
 
+WATCHED_FOLDERS: list[dict] = [
+    {
+        "path": str(Path.home() / "Downloads"),
+        "enabled": True,
+        "rules": {
+            "ignore_list": True,
+            "client_match": True,
+            "regex_rules": True,
+            "extension_categories": True,
+        },
+    },
+]
+
 TEMP_EXTENSIONS = {
     ".crdownload", ".part", ".tmp", ".download", ".partial",
     ".opdownload", ".aria2",
@@ -115,6 +128,7 @@ _DEFAULTS = {
     "downloads_folder": str(DOWNLOADS_FOLDER),
     "debounce_seconds": DEBOUNCE_SECONDS,
     "notifications_enabled": NOTIFICATIONS_ENABLED,
+    "watched_folders": copy.deepcopy(WATCHED_FOLDERS),
     "categories": {k: sorted(v) for k, v in CATEGORIES.items()},
     "clients": copy.deepcopy(CLIENTS),
     "client_subcategories": {
@@ -130,7 +144,7 @@ def load_overrides():
     """Reset to code defaults, then apply any DB overrides."""
     global DOWNLOADS_FOLDER, DEBOUNCE_SECONDS, NOTIFICATIONS_ENABLED
     global CATEGORIES, CLIENTS, CLIENT_SUBCATEGORIES
-    global IGNORE_LIST, REGEX_RULES
+    global IGNORE_LIST, REGEX_RULES, WATCHED_FOLDERS
 
     DOWNLOADS_FOLDER = Path(_DEFAULTS["downloads_folder"])
     DEBOUNCE_SECONDS = _DEFAULTS["debounce_seconds"]
@@ -143,6 +157,7 @@ def load_overrides():
     }
     IGNORE_LIST = list(_DEFAULTS["ignore_list"])
     REGEX_RULES = dict(_DEFAULTS["regex_rules"])
+    WATCHED_FOLDERS = copy.deepcopy(_DEFAULTS["watched_folders"])
 
     try:
         import db
@@ -170,5 +185,7 @@ def load_overrides():
         IGNORE_LIST = overrides["ignore_list"]
     if "regex_rules" in overrides:
         REGEX_RULES = overrides["regex_rules"]
+    if "watched_folders" in overrides:
+        WATCHED_FOLDERS = overrides["watched_folders"]
 
     _rebuild_maps()

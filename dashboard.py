@@ -11,8 +11,7 @@ import config
 import db
 from main import DailyLogHandler
 from sorter import (sweep, undo, undo_selected, is_temp_file, is_ignored,
-                     get_client, get_client_subcategory, get_regex_category,
-                     get_category)
+                     get_client, get_regex_category, get_category)
 
 LOG_DIR = Path(__file__).parent / "logs"
 log = logging.getLogger("fileSorter")
@@ -233,6 +232,7 @@ def api_get_settings():
         "ignore_list": config.IGNORE_LIST,
         "regex_rules": config.REGEX_RULES,
         "notifications_enabled": config.NOTIFICATIONS_ENABLED,
+        "watched_folders": config.WATCHED_FOLDERS,
     })
 
 
@@ -241,7 +241,7 @@ def api_save_settings():
     data = request.json
     for key in ("categories", "clients", "client_subcategories",
                 "ignore_list", "regex_rules", "downloads_folder",
-                "debounce_seconds", "notifications_enabled"):
+                "debounce_seconds", "notifications_enabled", "watched_folders"):
         if key in data:
             db.save_setting(key, data[key])
     config.load_overrides()
@@ -256,7 +256,7 @@ def api_reset_settings():
     else:
         for k in ("categories", "clients", "client_subcategories",
                    "ignore_list", "regex_rules", "downloads_folder",
-                   "debounce_seconds", "notifications_enabled"):
+                   "debounce_seconds", "notifications_enabled", "watched_folders"):
             db.delete_setting(k)
     config.load_overrides()
     return jsonify({"ok": True})
@@ -298,10 +298,26 @@ def api_test_sort():
 
     client = get_client(path)
     if client:
-        subcat = get_client_subcategory(path)
+        subcat = None
+        subcat_reason = ""
+        name_lower = path.stem.lower()
+        for keyword, sc in config.CLIENT_KEYWORD_MAP.items():
+            if keyword in name_lower:
+                subcat = sc
+                subcat_reason = f"keyword '{keyword}'"
+                break
+        if not subcat:
+            subcat = config.CLIENT_EXTENSION_MAP.get(path.suffix.lower())
+            if subcat:
+                subcat_reason = f"extension '{path.suffix}'"
         dest = f"{client}\\{subcat}" if subcat else client
+        detail = f"Client '{client}'"
+        if subcat:
+            detail += f" → {subcat} (matched by {subcat_reason})"
+        else:
+            detail += " → client root (no sub-category match)"
         steps.append({"step": 4, "name": "Client Match", "matched": True,
-                       "detail": f"Client '{client}'" + (f", sub-category '{subcat}'" if subcat else "")})
+                       "detail": detail})
         result["outcome"] = "sort"
         result["reason"] = f"Client match — sorted to {dest}"
         result["destination"] = dest
@@ -775,6 +791,25 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
 .cs-example div { margin-bottom: 4px; }
 .cs-example code { background: #1e293b; padding: 2px 6px; border-radius: 4px; font-size: 11px; color: #93c5fd; }
 .cs-example .cs-arrow { color: var(--muted); margin: 0 4px; }
+.wf-card {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 14px; margin-bottom: 10px;
+}
+.wf-header {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+}
+.wf-header .wf-path { flex: 1; font-size: 13px; font-weight: 600; word-break: break-all; }
+.wf-toggle { display: flex; align-items: center; gap: 6px; }
+.wf-toggle label { font-size: 11px; color: var(--muted); cursor: pointer; }
+.wf-rules { display: flex; flex-wrap: wrap; gap: 8px; }
+.wf-rule {
+    display: flex; align-items: center; gap: 5px; padding: 4px 10px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 6px;
+    font-size: 11px;
+}
+.wf-rule input { width: auto; cursor: pointer; accent-color: var(--primary); }
+.wf-rule label { cursor: pointer; color: var(--text); }
+.wf-rule.disabled label { color: var(--muted); }
 </style>
 </head>
 <body>
@@ -864,6 +899,17 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
     <div class="field" style="display:flex;align-items:center;gap:8px;margin-top:4px">
         <input type="checkbox" id="cfgNotify" style="width:auto">
         <label for="cfgNotify" style="display:inline;margin:0;cursor:pointer">Enable desktop notifications</label>
+    </div>
+</div>
+
+<!-- Watched Folders -->
+<div class="chart-card">
+    <h3>Watched Folders</h3>
+    <p style="font-size:12px;color:var(--muted);margin:4px 0 10px">Folders that the watcher monitors. Toggle rules per folder to control which sorting steps apply.</p>
+    <div id="watchedFolders"></div>
+    <div class="add-row" style="margin-top:10px">
+        <input type="text" id="newWatchFolder" placeholder="Folder path (e.g. C:\Users\you\Desktop)" onkeydown="if(event.key==='Enter')addWatchedFolder()">
+        <button class="btn btn-sm btn-primary" onclick="addWatchedFolder()">Add</button>
     </div>
 </div>
 
@@ -1075,6 +1121,7 @@ function renderAll() {
     document.getElementById('cfgFolder').value = S.downloads_folder;
     document.getElementById('cfgDebounce').value = S.debounce_seconds;
     document.getElementById('cfgNotify').checked = S.notifications_enabled;
+    renderWatchedFolders();
     renderCategories();
     renderClients();
     renderSubcats();
@@ -1089,6 +1136,7 @@ function collectState() {
     data.downloads_folder = document.getElementById('cfgFolder').value;
     data.debounce_seconds = parseInt(document.getElementById('cfgDebounce').value) || 3;
     data.notifications_enabled = document.getElementById('cfgNotify').checked;
+    data.watched_folders = S.watched_folders || [];
 
     data.categories = {};
     document.querySelectorAll('#catContainer .tree-node').forEach(node => {
@@ -1264,6 +1312,69 @@ async function resetAll() {
         showToast('Settings reset to defaults');
         await loadSettings();
     }
+}
+
+function renderWatchedFolders() {
+    const c = document.getElementById('watchedFolders');
+    c.innerHTML = '';
+    (S.watched_folders || []).forEach((wf, idx) => {
+        const rules = wf.rules || {};
+        const card = document.createElement('div');
+        card.className = 'wf-card';
+        const ruleItems = [
+            {key: 'ignore_list', label: 'Ignore List', step: 3},
+            {key: 'client_match', label: 'Client Match', step: 4},
+            {key: 'regex_rules', label: 'Regex Rules', step: 5},
+            {key: 'extension_categories', label: 'Extension Categories', step: 6},
+        ];
+        let rulesHtml = '';
+        ruleItems.forEach(r => {
+            const checked = rules[r.key] !== false;
+            rulesHtml += '<div class="wf-rule' + (checked ? '' : ' disabled') + '">'
+                + '<input type="checkbox" id="wf'+idx+'_'+r.key+'"' + (checked ? ' checked' : '')
+                + ' onchange="toggleWfRule('+idx+',\''+r.key+'\',this.checked)">'
+                + '<label for="wf'+idx+'_'+r.key+'">'+r.label+'</label></div>';
+        });
+        const enabled = wf.enabled !== false;
+        card.innerHTML = '<div class="wf-header">'
+            + '<div class="wf-toggle"><input type="checkbox" id="wfEn'+idx+'"'+(enabled?' checked':'')
+            + ' onchange="toggleWfEnabled('+idx+',this.checked)"><label for="wfEn'+idx+'">'+(enabled?'Active':'Paused')+'</label></div>'
+            + '<span class="wf-path">' + escapeHtml(wf.path) + '</span>'
+            + '<button class="btn btn-sm btn-danger" onclick="removeWatchedFolder('+idx+')" style="padding:3px 8px">&times;</button>'
+            + '</div>'
+            + '<div class="wf-rules">' + rulesHtml + '</div>';
+        c.appendChild(card);
+    });
+}
+
+function toggleWfEnabled(idx, val) {
+    S.watched_folders[idx].enabled = val;
+    renderWatchedFolders();
+}
+
+function toggleWfRule(idx, key, val) {
+    if (!S.watched_folders[idx].rules) S.watched_folders[idx].rules = {};
+    S.watched_folders[idx].rules[key] = val;
+    const el = document.getElementById('wf'+idx+'_'+key).closest('.wf-rule');
+    el.classList.toggle('disabled', !val);
+}
+
+function addWatchedFolder() {
+    const input = document.getElementById('newWatchFolder');
+    const path = input.value.trim();
+    if (!path) return;
+    if (!S.watched_folders) S.watched_folders = [];
+    S.watched_folders.push({
+        path: path, enabled: true,
+        rules: {ignore_list: true, client_match: true, regex_rules: true, extension_categories: true}
+    });
+    renderWatchedFolders();
+    input.value = '';
+}
+
+function removeWatchedFolder(idx) {
+    S.watched_folders.splice(idx, 1);
+    renderWatchedFolders();
 }
 
 async function testSort() {
