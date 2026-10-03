@@ -5,8 +5,10 @@ import subprocess
 import sys
 import threading
 import webbrowser
+from datetime import datetime
 from pathlib import Path
 
+from croniter import croniter
 from pystray import Icon, Menu, MenuItem
 from PIL import Image, ImageDraw
 
@@ -26,6 +28,8 @@ log = logging.getLogger("fileSorter")
 _observers: list[Observer] = []
 _observer_lock = threading.Lock()
 _icon: Icon | None = None
+_cron_stop = threading.Event()
+_cron_thread: threading.Thread | None = None
 
 
 def is_watching() -> bool:
@@ -109,8 +113,50 @@ def _start_dashboard_server():
         log.warning("Dashboard failed to start: %s", e)
 
 
+def _cron_sweep_loop():
+    while not _cron_stop.is_set():
+        expr = config.SWEEP_CRON
+        if not expr:
+            _cron_stop.wait(60)
+            continue
+        try:
+            cron = croniter(expr, datetime.now())
+        except (ValueError, KeyError):
+            log.warning("Invalid cron expression: %s", expr)
+            _cron_stop.wait(60)
+            continue
+        next_time = cron.get_next(datetime)
+        delay = (next_time - datetime.now()).total_seconds()
+        if delay > 0:
+            _cron_stop.wait(delay)
+        if _cron_stop.is_set():
+            break
+        config.load_overrides()
+        base = config.DOWNLOADS_FOLDER
+        count = sweep(base)
+        log.info("Scheduled sweep complete: %d file(s) sorted", count)
+
+
+def _start_cron():
+    global _cron_thread
+    if _cron_thread and _cron_thread.is_alive():
+        return
+    _cron_stop.clear()
+    _cron_thread = threading.Thread(target=_cron_sweep_loop, daemon=True)
+    _cron_thread.start()
+    log.info("Cron sweep scheduler started (schedule: %s)", config.SWEEP_CRON)
+
+
+def _stop_cron():
+    _cron_stop.set()
+    if _cron_thread:
+        _cron_thread.join(timeout=5)
+    log.info("Cron sweep scheduler stopped")
+
+
 def _quit(icon, item):
     _stop_watcher()
+    _stop_cron()
     icon.stop()
 
 
@@ -143,4 +189,5 @@ def run(start_watcher: bool = True, dashboard: bool = True):
     if start_watcher:
         _start_watcher()
 
+    _start_cron()
     _icon.run()

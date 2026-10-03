@@ -6,7 +6,7 @@ A Python utility that automatically organizes your Downloads folder by sorting f
 
 - **Multi-folder watching** — watch Downloads, Desktop, or any folder with per-folder rule toggles (ignore list, client match, regex, extension categories)
 - **Real-time sorting** — watches your folders and moves files as they arrive
-- **Batch sweep** — one-command cleanup of all existing files
+- **Batch sweep** — one-command cleanup of all existing files, with configurable cron schedule for automatic sweeps
 - **Smart download handling** — ignores incomplete downloads (`.crdownload`, `.part`, `.tmp`) until finished
 - **Duplicate safety** — auto-renames with `(1)`, `(2)`, etc. instead of overwriting
 - **Client sorting** — route files to client folders with optional project-level organization and sub-categories based on filename keywords
@@ -119,14 +119,14 @@ Opens a dashboard at `http://localhost:5000` with:
 - **Settings page** (`/settings`) — edit all config from the browser:
   - Rule tester — type any filename to see which rule matches and where it would be sorted, with linked category highlights showing when a client sub-category match came through a linked file category
   - Sorting priority pipeline — visual diagram showing the 7-step evaluation order
-  - General settings (downloads folder, debounce delay)
+  - General settings (downloads folder, debounce delay, sweep schedule)
   - Sections ordered and color-coded to match sorting priority (red=skip, green=match, blue=fallback)
   - Collapsible tree view for file categories with extension counts
   - Clients (add/remove clients and keywords)
   - Client projects with keyword-based project detection per client
   - Client sub-categories with nested tree view (keywords, extensions, and linked file categories per sub-category)
   - Ignore list (glob patterns)
-  - Regex rules (pattern → folder) with collapsible cheat sheet for beginners
+  - Regex rules (pattern → folder) with inline test input per rule and collapsible cheat sheet
   - Export/import settings as JSON for backup or sharing
   - Save All / Reset to Defaults buttons
   - Watched folders management — add/remove folders, toggle per-folder sorting rules
@@ -164,8 +164,8 @@ This registers two scheduled tasks:
 
 | Task | Trigger | Purpose |
 |---|---|---|
-| `FileSorter-Watch` | On logon | System tray icon with watcher + dashboard |
-| `FileSorter-Sweep` | Daily at 2:00 AM | Batch sweep safety net |
+| `FileSorter-Watch` | On logon | System tray icon with watcher + dashboard + cron sweep |
+| `FileSorter-Sweep` | Daily at 2:00 AM | Batch sweep safety net (fallback if tray isn't running) |
 
 Start the tray immediately:
 
@@ -320,6 +320,26 @@ CATEGORIES = {
 ```
 
 The subfolder hierarchy is created automatically — no other code changes needed.
+
+### Sweep Schedule
+
+Configure how often the automatic sweep runs using a cron expression:
+
+```python
+SWEEP_CRON = "0 2 * * *"    # daily at 2:00 AM (default)
+```
+
+Common schedules:
+
+| Expression | Description |
+|---|---|
+| `0 2 * * *` | Daily at 2:00 AM |
+| `0 */6 * * *` | Every 6 hours |
+| `*/30 * * * *` | Every 30 minutes |
+| `0 8 * * 1-5` | Weekdays at 8:00 AM |
+| `0 9,18 * * *` | Twice daily at 9 AM and 6 PM |
+
+Set to an empty string to disable scheduled sweeps. The schedule runs inside the tray process — no external Task Scheduler dependency. The Settings page includes a cron cheat sheet and live preview of the next run time.
 
 ## Sorting Priority
 

@@ -3,8 +3,10 @@
 import logging
 import subprocess
 import webbrowser
+from datetime import datetime
 from pathlib import Path
 
+from croniter import croniter
 from flask import Flask, jsonify, render_template_string, request
 
 import config
@@ -257,6 +259,7 @@ def api_get_settings():
         "ignore_list": config.IGNORE_LIST,
         "regex_rules": config.REGEX_RULES,
         "notifications_enabled": config.NOTIFICATIONS_ENABLED,
+        "sweep_cron": config.SWEEP_CRON,
         "watched_folders": config.WATCHED_FOLDERS,
     })
 
@@ -267,7 +270,7 @@ def api_save_settings():
     for key in ("categories", "clients", "client_projects",
                 "client_subcategories", "ignore_list", "regex_rules",
                 "downloads_folder", "debounce_seconds",
-                "notifications_enabled", "watched_folders"):
+                "notifications_enabled", "sweep_cron", "watched_folders"):
         if key in data:
             db.save_setting(key, data[key])
     config.load_overrides()
@@ -283,7 +286,7 @@ def api_reset_settings():
         for k in ("categories", "clients", "client_projects",
                    "client_subcategories", "ignore_list", "regex_rules",
                    "downloads_folder", "debounce_seconds",
-                   "notifications_enabled", "watched_folders"):
+                   "notifications_enabled", "sweep_cron", "watched_folders"):
             db.delete_setting(k)
     config.load_overrides()
     return jsonify({"ok": True})
@@ -403,6 +406,19 @@ def api_test_sort():
     result["outcome"] = "skip"
     result["reason"] = "Unknown extension — left in place"
     return jsonify(result)
+
+
+@app.route("/api/cron-preview", methods=["POST"])
+def api_cron_preview():
+    expr = (request.json or {}).get("expression", "").strip()
+    if not expr:
+        return jsonify({"valid": True, "next": None})
+    try:
+        cron = croniter(expr, datetime.now())
+        upcoming = [cron.get_next(datetime).strftime("%Y-%m-%d %H:%M") for _ in range(3)]
+        return jsonify({"valid": True, "next": upcoming})
+    except (ValueError, KeyError):
+        return jsonify({"valid": False, "error": "Invalid cron expression"})
 
 
 # --- Dashboard template ---
@@ -1017,6 +1033,16 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
 .wf-rule input { width: auto; cursor: pointer; accent-color: var(--primary); }
 .wf-rule label { cursor: pointer; color: var(--text); }
 .wf-rule.disabled label { color: var(--muted); }
+.regex-test-cell { display: flex; align-items: center; gap: 6px; }
+.regex-test-input {
+    width: 120px; padding: 3px 6px; font-size: 11px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+    color: var(--text);
+}
+.regex-test-input:focus { outline: none; border-color: var(--primary); }
+.regex-test-result { font-size: 11px; white-space: nowrap; }
+.regex-match { color: #86efac; }
+.regex-no-match { color: #fca5a5; }
 </style>
 </head>
 <body>
@@ -1106,6 +1132,45 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
         <label>Debounce Delay (seconds)</label>
         <input type="number" id="cfgDebounce" min="1" max="30">
     </div>
+    <div class="field">
+        <label>Sweep Schedule (cron expression)</label>
+        <div style="display:flex;gap:8px;align-items:center">
+            <input type="text" id="cfgSweepCron" placeholder="0 2 * * *" style="flex:1">
+            <span id="cronNext" style="font-size:11px;color:var(--muted);white-space:nowrap"></span>
+        </div>
+        <p style="font-size:11px;color:var(--muted);margin:4px 0 0">Leave empty to disable scheduled sweeps.</p>
+    </div>
+    <button class="cheatsheet-toggle" id="cronCsToggle" onclick="document.getElementById('cronCsSheet').classList.toggle('open');this.classList.toggle('open')">
+        <span class="chev">&#9654;</span> Cron Cheat Sheet
+    </button>
+    <div class="cheatsheet" id="cronCsSheet">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px;font-family:monospace">
+            &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472; minute (0&#8211;59)<br>
+            &#9474; &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472; hour (0&#8211;23)<br>
+            &#9474; &#9474; &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472; day of month (1&#8211;31)<br>
+            &#9474; &#9474; &#9474; &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472; month (1&#8211;12)<br>
+            &#9474; &#9474; &#9474; &#9474; &#9484;&#9472;&#9472;&#9472;&#9472;&#9472; day of week (0&#8211;6, Sun=0)<br>
+            *&nbsp; *&nbsp; *&nbsp; *&nbsp; *
+        </div>
+        <table class="cs-table" style="width:100%">
+            <thead><tr><th>Symbol</th><th>Meaning</th><th>Example</th></tr></thead>
+            <tbody>
+                <tr><td><code>*</code></td><td>Every value</td><td class="cs-desc"><code>* * * * *</code> = every minute</td></tr>
+                <tr><td><code>,</code></td><td>List of values</td><td class="cs-desc"><code>0 2,14 * * *</code> = at 2 AM and 2 PM</td></tr>
+                <tr><td><code>-</code></td><td>Range of values</td><td class="cs-desc"><code>0 9-17 * * *</code> = every hour 9 AM to 5 PM</td></tr>
+                <tr><td><code>/</code></td><td>Step interval</td><td class="cs-desc"><code>*/30 * * * *</code> = every 30 minutes</td></tr>
+            </tbody>
+        </table>
+        <div class="cs-example">
+            <strong>Common examples</strong>
+            <div><code>0 2 * * *</code> <span class="cs-arrow">&mdash;</span> <span class="cs-desc">Daily at 2:00 AM</span></div>
+            <div><code>0 */6 * * *</code> <span class="cs-arrow">&mdash;</span> <span class="cs-desc">Every 6 hours</span></div>
+            <div><code>*/30 * * * *</code> <span class="cs-arrow">&mdash;</span> <span class="cs-desc">Every 30 minutes</span></div>
+            <div><code>0 8 * * 1-5</code> <span class="cs-arrow">&mdash;</span> <span class="cs-desc">Weekdays at 8:00 AM</span></div>
+            <div><code>0 0 1 * *</code> <span class="cs-arrow">&mdash;</span> <span class="cs-desc">First day of every month at midnight</span></div>
+            <div><code>0 9,18 * * *</code> <span class="cs-arrow">&mdash;</span> <span class="cs-desc">Twice daily at 9 AM and 6 PM</span></div>
+        </div>
+    </div>
     <div class="field" style="display:flex;align-items:center;gap:8px;margin-top:4px">
         <input type="checkbox" id="cfgNotify" style="width:auto">
         <label for="cfgNotify" style="display:inline;margin:0;cursor:pointer">Enable desktop notifications</label>
@@ -1177,7 +1242,7 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
         <h3><span class="step-badge match">5</span>Regex Rules</h3>
     </div>
     <table id="regexTable">
-        <thead><tr><th>Pattern</th><th>Folder</th><th style="width:40px"></th></tr></thead>
+        <thead><tr><th>Pattern</th><th>Folder</th><th>Test</th><th style="width:40px"></th></tr></thead>
         <tbody id="regexBody"></tbody>
     </table>
     <div class="add-row" style="margin-bottom:10px">
@@ -1480,14 +1545,21 @@ function renderRegex() {
     const tbody = document.getElementById('regexBody');
     tbody.innerHTML = '';
     for (const [pattern, folder] of Object.entries(S.regex_rules)) {
+        const safeP = escapeHtml(pattern).replace(/'/g, "\\'");
         tbody.innerHTML += '<tr><td><code>' + escapeHtml(pattern) + '</code></td><td>' + escapeHtml(folder) + '</td>'
-            + '<td><button class="btn btn-sm btn-danger" onclick="removeRegex(\'' + escapeHtml(pattern).replace(/'/g, "\\'") + '\')">&times;</button></td></tr>';
+            + '<td><div class="regex-test-cell">'
+            + '<input type="text" class="regex-test-input" placeholder="filename" data-pattern="' + escapeHtml(pattern).replace(/"/g, '&quot;') + '" oninput="testRegexInput(this)">'
+            + '<span class="regex-test-result"></span>'
+            + '</div></td>'
+            + '<td><button class="btn btn-sm btn-danger" onclick="removeRegex(\'' + safeP + '\')">&times;</button></td></tr>';
     }
 }
 
 function renderAll() {
     document.getElementById('cfgFolder').value = S.downloads_folder;
     document.getElementById('cfgDebounce').value = S.debounce_seconds;
+    document.getElementById('cfgSweepCron').value = S.sweep_cron || '';
+    updateCronPreview();
     document.getElementById('cfgNotify').checked = S.notifications_enabled;
     renderWatchedFolders();
     renderCategories();
@@ -1505,6 +1577,7 @@ function collectState() {
     data.downloads_folder = document.getElementById('cfgFolder').value;
     data.debounce_seconds = parseInt(document.getElementById('cfgDebounce').value) || 3;
     data.notifications_enabled = document.getElementById('cfgNotify').checked;
+    data.sweep_cron = document.getElementById('cfgSweepCron').value.trim();
     data.watched_folders = S.watched_folders || [];
 
     data.categories = {};
@@ -1705,6 +1778,32 @@ function removeRegex(pattern) {
     renderRegex();
 }
 
+function testRegexInput(input) {
+    const filename = input.value.trim();
+    const result = input.nextElementSibling;
+    if (!filename) { result.textContent = ''; result.className = 'regex-test-result'; return; }
+    try {
+        let pattern = input.dataset.pattern;
+        let flags = '';
+        const flagMatch = pattern.match(/^\(\?([aiLmsux]+)\)/);
+        if (flagMatch) {
+            pattern = pattern.slice(flagMatch[0].length);
+            if (flagMatch[1].includes('i')) flags += 'i';
+        }
+        const re = new RegExp(pattern, flags);
+        if (re.test(filename)) {
+            result.textContent = '✔ Match';
+            result.className = 'regex-test-result regex-match';
+        } else {
+            result.textContent = '✘ No match';
+            result.className = 'regex-test-result regex-no-match';
+        }
+    } catch(e) {
+        result.textContent = 'Invalid regex';
+        result.className = 'regex-test-result regex-no-match';
+    }
+}
+
 // --- Save / Reset ---
 
 async function saveAll() {
@@ -1874,6 +1973,36 @@ async function testSort() {
     el.innerHTML = html;
     el.classList.add('visible');
 }
+
+let _cronTimer = null;
+async function updateCronPreview() {
+    const expr = document.getElementById('cfgSweepCron').value.trim();
+    const el = document.getElementById('cronNext');
+    if (!expr) { el.textContent = 'Disabled'; el.style.color = 'var(--muted)'; return; }
+    try {
+        const r = await fetch('/api/cron-preview', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({expression: expr})
+        });
+        const d = await r.json();
+        if (d.valid && d.next) {
+            el.textContent = 'Next: ' + d.next[0];
+            el.style.color = '#86efac';
+        } else if (!d.valid) {
+            el.textContent = 'Invalid expression';
+            el.style.color = '#fca5a5';
+        } else {
+            el.textContent = 'Disabled';
+            el.style.color = 'var(--muted)';
+        }
+    } catch(e) {
+        el.textContent = '';
+    }
+}
+document.getElementById('cfgSweepCron').addEventListener('input', function() {
+    clearTimeout(_cronTimer);
+    _cronTimer = setTimeout(updateCronPreview, 400);
+});
 
 async function loadSettings() {
     const r = await fetch('/api/settings');

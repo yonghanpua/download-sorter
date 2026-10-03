@@ -5,6 +5,7 @@ DOWNLOADS_FOLDER = Path.home() / "Downloads"
 
 DEBOUNCE_SECONDS = 3
 NOTIFICATIONS_ENABLED = True
+SWEEP_CRON = "0 2 * * *"
 
 WATCHED_FOLDERS: list[dict] = [
     {
@@ -180,6 +181,7 @@ _DEFAULTS = {
     "downloads_folder": str(DOWNLOADS_FOLDER),
     "debounce_seconds": DEBOUNCE_SECONDS,
     "notifications_enabled": NOTIFICATIONS_ENABLED,
+    "sweep_cron": SWEEP_CRON,
     "watched_folders": copy.deepcopy(WATCHED_FOLDERS),
     "categories": {k: sorted(v) for k, v in CATEGORIES.items()},
     "clients": copy.deepcopy(CLIENTS),
@@ -199,13 +201,14 @@ _DEFAULTS = {
 
 def load_overrides():
     """Reset to code defaults, then apply any DB overrides."""
-    global DOWNLOADS_FOLDER, DEBOUNCE_SECONDS, NOTIFICATIONS_ENABLED
+    global DOWNLOADS_FOLDER, DEBOUNCE_SECONDS, NOTIFICATIONS_ENABLED, SWEEP_CRON
     global CATEGORIES, CLIENTS, CLIENT_PROJECTS, CLIENT_SUBCATEGORIES
     global IGNORE_LIST, REGEX_RULES, WATCHED_FOLDERS
 
     DOWNLOADS_FOLDER = Path(_DEFAULTS["downloads_folder"])
     DEBOUNCE_SECONDS = _DEFAULTS["debounce_seconds"]
     NOTIFICATIONS_ENABLED = _DEFAULTS["notifications_enabled"]
+    SWEEP_CRON = _DEFAULTS["sweep_cron"]
     CATEGORIES = {k: set(v) for k, v in _DEFAULTS["categories"].items()}
     CLIENTS = copy.deepcopy(_DEFAULTS["clients"])
     CLIENT_PROJECTS = copy.deepcopy(_DEFAULTS["client_projects"])
@@ -234,6 +237,8 @@ def load_overrides():
         DEBOUNCE_SECONDS = overrides["debounce_seconds"]
     if "notifications_enabled" in overrides:
         NOTIFICATIONS_ENABLED = overrides["notifications_enabled"]
+    if "sweep_cron" in overrides:
+        SWEEP_CRON = overrides["sweep_cron"]
     if "categories" in overrides:
         CATEGORIES = {k: set(v) for k, v in overrides["categories"].items()}
     if "clients" in overrides:
