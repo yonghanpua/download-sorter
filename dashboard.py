@@ -1199,14 +1199,12 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
         <span class="chev">&#9654;</span> Cron Cheat Sheet
     </button>
     <div class="cheatsheet" id="cronCsSheet">
-        <div style="font-size:12px;color:var(--muted);margin-bottom:10px;font-family:monospace">
-            &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472; minute (0&#8211;59)<br>
-            &#9474; &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472; hour (0&#8211;23)<br>
-            &#9474; &#9474; &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472; day of month (1&#8211;31)<br>
-            &#9474; &#9474; &#9474; &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472; month (1&#8211;12)<br>
-            &#9474; &#9474; &#9474; &#9474; &#9484;&#9472;&#9472;&#9472;&#9472;&#9472; day of week (0&#8211;6, Sun=0)<br>
-            *&nbsp; *&nbsp; *&nbsp; *&nbsp; *
-        </div>
+        <pre style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">.------------- minute (0-59)
+| .----------- hour (0-23)
+| | .--------- day of month (1-31)
+| | | .------- month (1-12)
+| | | | .----- day of week (0-6, Sun=0)
+* * * * *</pre>
         <table class="cs-table" style="width:100%">
             <thead><tr><th>Symbol</th><th>Meaning</th><th>Example</th></tr></thead>
             <tbody>
