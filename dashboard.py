@@ -117,7 +117,8 @@ h1 { font-size: 24px; margin-bottom: 4px; }
     margin-bottom: 10px; flex-wrap: wrap; gap: 8px;
 }
 .section-header h3 { margin-bottom: 0; }
-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+.history-table-wrap { min-height: 400px; }
 th {
     text-align: left; color: var(--muted); font-weight: 600;
     padding: 6px 10px; border-bottom: 2px solid var(--border);
@@ -319,6 +320,11 @@ input[type="checkbox"] { cursor: pointer; accent-color: var(--primary); }
 .pagination button:disabled { opacity: 0.4; cursor: not-allowed; }
 .pagination button.active { background: var(--primary); color: white; border-color: var(--primary); }
 .pagination .page-info { color: var(--muted); font-size: 12px; margin: 0 8px; }
+.per-page-select {
+    padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--card); color: var(--text); font-size: 12px; cursor: pointer;
+    margin-left: 8px;
+}
 </style>
 </head>
 <body>
@@ -367,10 +373,12 @@ input[type="checkbox"] { cursor: pointer; accent-color: var(--primary); }
         <span><span class="selected-count" id="selectedCount">0</span> selected</span>
         <button class="btn btn-warning btn-sm" onclick="undoSelected()">Undo Selected</button>
     </div>
+    <div class="history-table-wrap">
     <table>
-        <thead><tr><th style="width:30px"></th><th>Time</th><th>File</th><th>Moved To</th><th>Status</th></tr></thead>
+        <thead><tr><th style="width:30px"></th><th style="width:140px">Time</th><th>File</th><th>Moved To</th><th style="width:60px">Status</th></tr></thead>
         <tbody id="historyBody"></tbody>
     </table>
+    </div>
     <div class="pagination" id="pagination"></div>
 </div>
 
@@ -386,6 +394,7 @@ let historyItems = [];
 let currentPage = 1;
 let totalPages = 1;
 let totalItems = 0;
+let perPage = 50;
 
 function showToast(msg) {
     const t = document.getElementById('toast');
@@ -449,7 +458,7 @@ function initCharts(){
 async function refresh(){
     const q=currentDate?'?date='+currentDate:'';
     const hq=q?q+'&':'?';
-    const [sr,hr]=await Promise.all([fetch('/api/stats'+q),fetch('/api/history'+hq+'page='+currentPage)]);
+    const [sr,hr]=await Promise.all([fetch('/api/stats'+q),fetch('/api/history'+hq+'page='+currentPage+'&per_page='+perPage)]);
     const d=await sr.json(), h=await hr.json();
     watching=d.watching; updateWatcherBtn();
     document.getElementById('sMoved').textContent=d.total_moved;
@@ -485,20 +494,27 @@ function renderHistory(){
 }
 function filterHistory(){renderHistory();}
 function goToPage(p){if(p<1||p>totalPages||p===currentPage)return;currentPage=p;refresh();}
+function changePerPage(val){perPage=parseInt(val);currentPage=1;refresh();}
 function renderPagination(){
     const el=document.getElementById('pagination');
-    if(totalPages<=1){el.innerHTML='';return;}
-    let html='<button onclick="goToPage(1)"'+(currentPage===1?' disabled':'')+'>&#171;</button>';
-    html+='<button onclick="goToPage(currentPage-1)"'+(currentPage===1?' disabled':'')+'>&#8249;</button>';
-    const start=Math.max(1,currentPage-2),end=Math.min(totalPages,currentPage+2);
-    if(start>1)html+='<span class="page-info">...</span>';
-    for(let i=start;i<=end;i++){
-        html+='<button onclick="goToPage('+i+')"'+(i===currentPage?' class="active"':'')+'>'+i+'</button>';
+    const sizes=[10,25,50,100];
+    let html='';
+    if(totalPages>1){
+        html+='<button onclick="goToPage(1)"'+(currentPage===1?' disabled':'')+'>&#171;</button>';
+        html+='<button onclick="goToPage(currentPage-1)"'+(currentPage===1?' disabled':'')+'>&#8249;</button>';
+        const start=Math.max(1,currentPage-2),end=Math.min(totalPages,currentPage+2);
+        if(start>1)html+='<span class="page-info">...</span>';
+        for(let i=start;i<=end;i++){
+            html+='<button onclick="goToPage('+i+')"'+(i===currentPage?' class="active"':'')+'>'+i+'</button>';
+        }
+        if(end<totalPages)html+='<span class="page-info">...</span>';
+        html+='<button onclick="goToPage(currentPage+1)"'+(currentPage===totalPages?' disabled':'')+'>&#8250;</button>';
+        html+='<button onclick="goToPage(totalPages)"'+(currentPage===totalPages?' disabled':'')+'>&#187;</button>';
     }
-    if(end<totalPages)html+='<span class="page-info">...</span>';
-    html+='<button onclick="goToPage(currentPage+1)"'+(currentPage===totalPages?' disabled':'')+'>&#8250;</button>';
-    html+='<button onclick="goToPage(totalPages)"'+(currentPage===totalPages?' disabled':'')+'>&#187;</button>';
     html+='<span class="page-info">'+totalItems+' items</span>';
+    html+='<select class="per-page-select" onchange="changePerPage(this.value)">';
+    sizes.forEach(s=>{html+='<option value="'+s+'"'+(s===perPage?' selected':'')+'>'+s+' / page</option>';});
+    html+='</select>';
     el.innerHTML=html;
 }
 initCharts(); refresh(); setInterval(refresh,10000);
