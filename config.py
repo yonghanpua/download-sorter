@@ -42,7 +42,7 @@ REGEX_RULES: dict[str, str] = {
 CATEGORIES = {
     "Documents/PDFs": {".pdf"},
     "Documents/Word": {".doc", ".docx", ".odt", ".rtf"},
-    "Documents/Spreadsheets": {".xls", ".xlsx", ".ods", ".csv"},
+    "Documents/Spreadsheets": {".xls", ".xlsx", ".ods", ".csv", ".xlsm", ".xlam"},
     "Documents/Presentations": {".ppt", ".pptx", ".odp"},
     "Documents/Text": {".txt", ".md"},
     "Documents/eBooks": {".epub", ".mobi"},
@@ -69,11 +69,15 @@ CATEGORIES = {
         ".exe", ".msi", ".msix", ".appx", ".deb", ".rpm",
     },
     "Code/Web": {".html", ".css", ".js", ".ts", ".json", ".xml"},
-    "Code/Scripts": {".py", ".sh", ".bat", ".ps1", ".rb", ".php"},
+    "Code/Scripts": {".py", ".sh", ".bat", ".ps1", ".rb", ".php", ".vbs"},
     "Code/Compiled": {
         ".java", ".c", ".cpp", ".h", ".cs", ".go", ".rs",
+        ".sln", ".csproj",
     },
     "Code/Data": {".yaml", ".yml", ".sql"},
+    "Data/Power BI": {".pbix", ".pbit"},
+    "Data/Database": {".bak", ".dacpac", ".bacpac"},
+    "Ignition": {".gwbk"},
     "Fonts": {
         ".ttf", ".otf", ".woff", ".woff2", ".eot",
     },
@@ -89,31 +93,46 @@ CLIENTS: dict[str, list[str]] = {
 
 CLIENT_SUBCATEGORIES: dict[str, dict] = {
     "01. Commercial/Proposals": {
-        "keywords": ["proposal", "quote", "tender"],
+        "keywords": ["proposal", "quote", "tender", "bid", "rfq"],
         "extensions": {".ppt", ".pptx"},
     },
     "01. Commercial/Contracts": {
-        "keywords": ["contract", "commercial", "invoice"],
-        "extensions": {".pdf", ".doc", ".docx", ".xlsx", ".xls"},
+        "keywords": ["contract", "agreement", "nda"],
+        "extensions": {".pdf"},
     },
-    "02. Documentation/Manuals": {
-        "keywords": ["manual", "guide", "sop"],
+    "01. Commercial/Change Orders": {
+        "keywords": ["changeorder", "variation", "amendment"],
+        "extensions": set(),
+    },
+    "01. Commercial/Invoices": {
+        "keywords": ["invoice", "payment", "billing", "claim"],
+        "extensions": {".xlsx", ".xls"},
+    },
+    "02. Correspondence/Meeting Minutes": {
+        "keywords": ["minutes", "mom", "meeting"],
+        "extensions": set(),
+    },
+    "02. Correspondence/Transmittals": {
+        "keywords": ["transmittal", "letter", "memo", "correspondence"],
+        "extensions": {".doc", ".docx"},
+    },
+    "03. Documentation/Manuals": {
+        "keywords": ["manual", "guide", "sop", "procedure"],
         "extensions": {".txt", ".md", ".rtf", ".epub"},
     },
-    "02. Documentation/Specs": {
-        "keywords": ["documentation", "spec", "requirement"],
+    "03. Documentation/Specs": {
+        "keywords": ["spec", "requirement", "datasheet", "documentation"],
         "extensions": {".csv"},
     },
-    "03. Development/Source": {
-        "keywords": ["dev", "source", "code"],
-        "extensions": {
-            ".py", ".js", ".ts", ".sql", ".json", ".xml", ".yaml", ".yml",
-            ".html", ".css",
-        },
+    "04. Development/Source": {
+        "keywords": ["dev", "source", "code", "script"],
+        "extensions": set(),
+        "categories": ["Code/Web", "Code/Scripts", "Code/Compiled", "Code/Data"],
     },
-    "03. Development/Builds": {
-        "keywords": ["deploy", "build", "release"],
-        "extensions": {".zip", ".7z", ".rar", ".tar", ".gz"},
+    "04. Development/Builds": {
+        "keywords": ["deploy", "build", "release", "backup"],
+        "extensions": set(),
+        "categories": ["Archives"],
     },
 }
 
@@ -136,7 +155,11 @@ def _rebuild_maps():
             CLIENT_KEYWORD_MAP[kw.lower()] = subcat
     CLIENT_EXTENSION_MAP = {}
     for subcat, rules in CLIENT_SUBCATEGORIES.items():
-        for ext in rules.get("extensions", set()):
+        exts = set(rules.get("extensions", set()))
+        for cat_ref in rules.get("categories", []):
+            if cat_ref in CATEGORIES:
+                exts |= CATEGORIES[cat_ref]
+        for ext in exts:
             CLIENT_EXTENSION_MAP[ext] = subcat
 
 
@@ -151,7 +174,11 @@ _DEFAULTS = {
     "categories": {k: sorted(v) for k, v in CATEGORIES.items()},
     "clients": copy.deepcopy(CLIENTS),
     "client_subcategories": {
-        k: {"keywords": list(v["keywords"]), "extensions": sorted(v["extensions"])}
+        k: {
+            "keywords": list(v["keywords"]),
+            "extensions": sorted(v.get("extensions", set())),
+            "categories": list(v.get("categories", [])),
+        }
         for k, v in CLIENT_SUBCATEGORIES.items()
     },
     "ignore_list": list(IGNORE_LIST),
@@ -171,7 +198,11 @@ def load_overrides():
     CATEGORIES = {k: set(v) for k, v in _DEFAULTS["categories"].items()}
     CLIENTS = copy.deepcopy(_DEFAULTS["clients"])
     CLIENT_SUBCATEGORIES = {
-        k: {"keywords": list(v["keywords"]), "extensions": set(v["extensions"])}
+        k: {
+            "keywords": list(v["keywords"]),
+            "extensions": set(v.get("extensions", [])),
+            "categories": list(v.get("categories", [])),
+        }
         for k, v in _DEFAULTS["client_subcategories"].items()
     }
     IGNORE_LIST = list(_DEFAULTS["ignore_list"])
@@ -197,7 +228,11 @@ def load_overrides():
         CLIENTS = overrides["clients"]
     if "client_subcategories" in overrides:
         CLIENT_SUBCATEGORIES = {
-            k: {"keywords": v.get("keywords", []), "extensions": set(v.get("extensions", []))}
+            k: {
+                "keywords": v.get("keywords", []),
+                "extensions": set(v.get("extensions", [])),
+                "categories": list(v.get("categories", [])),
+            }
             for k, v in overrides["client_subcategories"].items()
         }
     if "ignore_list" in overrides:

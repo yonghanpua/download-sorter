@@ -183,14 +183,14 @@ class TestGetClientSubcategory:
         assert get_client_subcategory(tmp_path / "AKSS_proposal.txt") == "01. Commercial/Proposals"
 
     def test_keyword_dev(self, tmp_path):
-        assert get_client_subcategory(tmp_path / "AKSS_dev_report.pdf") == "03. Development/Source"
+        assert get_client_subcategory(tmp_path / "AKSS_dev_report.pdf") == "04. Development/Source"
 
     def test_keyword_manual(self, tmp_path):
-        assert get_client_subcategory(tmp_path / "AKSS_manual.pdf") == "02. Documentation/Manuals"
+        assert get_client_subcategory(tmp_path / "AKSS_manual.pdf") == "03. Documentation/Manuals"
 
     def test_keyword_wins_over_extension(self, tmp_path):
         result = get_client_subcategory(tmp_path / "AKSS_dev_report.pdf")
-        assert result == "03. Development/Source"
+        assert result == "04. Development/Source"
 
     def test_extension_fallback(self, tmp_path):
         result = get_client_subcategory(tmp_path / "AKSS_summary.pdf")
@@ -272,7 +272,7 @@ class TestSortFile:
         f = tmp_path / "AKSS_dev_notes.pdf"
         f.write_text("test")
         result = sort_file(f, tmp_path)
-        assert result == tmp_path / "AKSS" / "03. Development" / "Source" / "AKSS_dev_notes.pdf"
+        assert result == tmp_path / "AKSS" / "04. Development" / "Source" / "AKSS_dev_notes.pdf"
 
     def test_client_no_subcategory(self, tmp_path):
         f = tmp_path / "AKSS_data.xyz"

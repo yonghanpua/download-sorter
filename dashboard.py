@@ -246,7 +246,11 @@ def api_get_settings():
         "categories": {k: sorted(v) for k, v in config.CATEGORIES.items()},
         "clients": config.CLIENTS,
         "client_subcategories": {
-            k: {"keywords": v["keywords"], "extensions": sorted(v["extensions"])}
+            k: {
+                "keywords": v["keywords"],
+                "extensions": sorted(v.get("extensions", set())),
+                "categories": list(v.get("categories", [])),
+            }
             for k, v in config.CLIENT_SUBCATEGORIES.items()
         },
         "ignore_list": config.IGNORE_LIST,
@@ -807,7 +811,7 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
 }
 .tag button:hover { opacity: 1; }
 .add-row { display: flex; gap: 6px; margin-top: 6px; }
-.add-row input {
+.add-row input, .add-row select {
     flex: 1; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px;
     background: var(--bg); color: var(--text); font-size: 12px;
 }
@@ -1296,6 +1300,15 @@ function renderClients() {
     }
 }
 
+function subcatCatOptions(eFull) {
+    let opts = '';
+    Object.keys(S.categories).forEach(cat => {
+        opts += '<option value="' + escapeHtml(cat) + '">' + escapeHtml(cat) + '</option>';
+    });
+    return '<select class="subcat-cat-select"><option value="">Link a category…</option>' + opts + '</select>'
+        + '<button class="btn btn-sm btn-primary" onclick="addSubcatCat(this.previousElementSibling,\'' + eFull + '\')">Add</button>';
+}
+
 function subcatCardHtml(full, label, rules) {
     const eFull = escapeHtml(full);
     const eLabel = escapeHtml(label);
@@ -1305,17 +1318,22 @@ function subcatCardHtml(full, label, rules) {
         + '<div style="margin-bottom:8px"><label style="font-size:11px;color:var(--muted);font-weight:600">Keywords</label>'
         + '<div class="tag-list" data-role="subcat-kw"></div>'
         + '<div class="add-row"><input type="text" placeholder="keyword" onkeydown="if(event.key===\'Enter\')addSubcatKw(this,\'' + eFull + '\')"><button class="btn btn-sm btn-primary" onclick="addSubcatKw(this.previousElementSibling,\'' + eFull + '\')">Add</button></div></div>'
-        + '<div><label style="font-size:11px;color:var(--muted);font-weight:600">Extensions</label>'
+        + '<div style="margin-bottom:8px"><label style="font-size:11px;color:var(--muted);font-weight:600">Extensions</label>'
         + '<div class="tag-list" data-role="subcat-ext"></div>'
         + '<div class="add-row"><input type="text" placeholder=".ext" onkeydown="if(event.key===\'Enter\')addSubcatExt(this,\'' + eFull + '\')"><button class="btn btn-sm btn-primary" onclick="addSubcatExt(this.previousElementSibling,\'' + eFull + '\')">Add</button></div></div>'
+        + '<div><label style="font-size:11px;color:var(--muted);font-weight:600">Linked Categories</label>'
+        + '<div class="tag-list" data-role="subcat-cat"></div>'
+        + '<div class="add-row">' + subcatCatOptions(eFull) + '</div></div>'
         + '</div>';
 }
 
 function populateSubcatTags(container, rules) {
     const kwList = container.querySelector('[data-role="subcat-kw"]');
     const extList = container.querySelector('[data-role="subcat-ext"]');
+    const catList = container.querySelector('[data-role="subcat-cat"]');
     (rules.keywords || []).forEach(kw => kwList.appendChild(makeTag(kw)));
     (rules.extensions || []).forEach(ext => extList.appendChild(makeTag(ext)));
+    (rules.categories || []).forEach(cat => catList.appendChild(makeTag(cat)));
 }
 
 function renderSubcats() {
@@ -1339,10 +1357,13 @@ function renderSubcats() {
         groupNode.className = 'tree-node tree-group';
         const totalKw = children.reduce((s, ch) => s + (ch.rules.keywords||[]).length, 0);
         const totalExt = children.reduce((s, ch) => s + (ch.rules.extensions||[]).length, 0);
+        const totalCat = children.reduce((s, ch) => s + (ch.rules.categories||[]).length, 0);
+        let badge = children.length + ' sub, ' + totalKw + ' kw, ' + totalExt + ' ext';
+        if (totalCat > 0) badge += ', ' + totalCat + ' linked';
         let html = '<div class="tree-row" onclick="toggleTreeNode(this)">'
             + '<span class="tree-chevron">&#9654;</span>'
             + '<span class="tree-name" style="font-weight:700">' + escapeHtml(parent) + '</span>'
-            + '<span class="tree-count">' + children.length + ' sub, ' + totalKw + ' kw, ' + totalExt + ' ext</span>'
+            + '<span class="tree-count">' + badge + '</span>'
             + '</div><div class="tree-body" style="padding-left:0">';
         children.forEach(ch => { html += subcatCardHtml(ch.full, ch.child, ch.rules); });
         html += '</div>';
@@ -1417,7 +1438,8 @@ function collectState() {
         const name = card.dataset.name;
         const kws = Array.from(card.querySelectorAll('[data-role="subcat-kw"] .tag')).map(t => t.textContent.replace('×', '').trim());
         const exts = Array.from(card.querySelectorAll('[data-role="subcat-ext"] .tag')).map(t => t.textContent.replace('×', '').trim());
-        data.client_subcategories[name] = { keywords: kws, extensions: exts };
+        const cats = Array.from(card.querySelectorAll('[data-role="subcat-cat"] .tag')).map(t => t.textContent.replace('×', '').trim());
+        data.client_subcategories[name] = { keywords: kws, extensions: exts, categories: cats };
     });
 
     data.ignore_list = Array.from(document.querySelectorAll('#ignoreList .tag')).map(t => t.textContent.replace('×', '').trim());
@@ -1502,11 +1524,22 @@ function addSubcatExt(input, subcatName) {
     input.value = '';
 }
 
+function addSubcatCat(select, subcatName) {
+    const v = select.value;
+    if (!v) return;
+    const card = select.closest('.cat-card');
+    const tagList = card.querySelector('[data-role="subcat-cat"]');
+    const existing = Array.from(tagList.querySelectorAll('.tag')).map(t => t.textContent.replace('×', '').trim());
+    if (existing.includes(v)) { select.value = ''; return; }
+    tagList.appendChild(makeTag(v));
+    select.value = '';
+}
+
 function addSubcat() {
     const input = document.getElementById('newSubcatInput');
     const name = input.value.trim();
     if (!name) return;
-    S.client_subcategories[name] = { keywords: [], extensions: [] };
+    S.client_subcategories[name] = { keywords: [], extensions: [], categories: [] };
     renderSubcats();
     input.value = '';
 }
