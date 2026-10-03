@@ -121,6 +121,7 @@ Opens a dashboard at `http://localhost:5000` with:
   - Client sub-categories (keywords + extensions per sub-category)
   - Ignore list (glob patterns)
   - Regex rules (pattern → folder) with collapsible cheat sheet for beginners
+  - Export/import settings as JSON for backup or sharing
   - Save All / Reset to Defaults buttons
   - Watched folders management — add/remove folders, toggle per-folder sorting rules
   - Changes are stored in SQLite and applied at runtime — no restart needed

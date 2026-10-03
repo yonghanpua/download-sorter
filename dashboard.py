@@ -843,6 +843,9 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
     </div>
     <div class="controls">
         <button class="btn btn-primary" onclick="saveAll()">Save Settings</button>
+        <button class="btn" onclick="exportSettings()" style="background:var(--card);color:var(--text)">Export</button>
+        <button class="btn" onclick="document.getElementById('importFile').click()" style="background:var(--card);color:var(--text)">Import</button>
+        <input type="file" id="importFile" accept=".json" style="display:none" onchange="importSettings(this)">
         <button class="btn btn-danger" onclick="resetAll()">Reset to Defaults</button>
     </div>
 </div>
@@ -1334,6 +1337,36 @@ async function resetAll() {
         showToast('Settings reset to defaults');
         await loadSettings();
     }
+}
+
+function exportSettings() {
+    const data = collectState();
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'fileSorter-settings.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Settings exported');
+}
+
+function importSettings(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+        try {
+            const data = JSON.parse(e.target.result);
+            S = data;
+            renderAll();
+            showToast('Settings imported — click Save to apply');
+        } catch (err) {
+            showToast('Invalid JSON file');
+        }
+    };
+    reader.readAsText(file);
+    input.value = '';
 }
 
 function renderWatchedFolders() {
