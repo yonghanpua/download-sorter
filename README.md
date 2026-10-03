@@ -23,18 +23,20 @@ A Python utility that automatically organizes your Downloads folder by sorting f
 
 ## Default Categories
 
-| Folder | Extensions |
-|---|---|
-| Documents | pdf, doc/docx, xls/xlsx, ppt/pptx, txt, csv, md, epub, and more |
-| Images | jpg, png, gif, bmp, svg, webp, avif, heic, psd, and more |
-| Media | mp3, mp4, avi, mkv, mov, wav, flac, and more |
-| Archives | zip, rar, 7z, tar, gz, iso, and more |
-| Installers | exe, msi, msix, appx |
-| Code | py, js, ts, html, css, json, sql, and more |
-| Fonts | ttf, otf, woff, woff2 |
-| 3D Prints | 3mf, stl, step, obj, gcode |
+Categories support nested subcategories using `/` in the name (e.g. `Documents/PDFs`). Files are sorted into the matching subfolder automatically.
 
-Files with unrecognized extensions are left in place.
+| Folder | Subcategories | Extensions |
+|---|---|---|
+| Documents | PDFs, Word, Spreadsheets, Presentations, Text, eBooks | pdf, doc/docx, xls/xlsx, ppt/pptx, txt, md, csv, epub, and more |
+| Images | Photos, Graphics, Vector, Design | jpg, png, gif, bmp, svg, webp, avif, heic, psd, and more |
+| Media | Video, Audio | mp3, mp4, avi, mkv, mov, wav, flac, and more |
+| Code | Web, Scripts, Compiled, Data | py, js, ts, html, css, json, sql, and more |
+| Archives | — | zip, rar, 7z, tar, gz, iso, and more |
+| Installers | — | exe, msi, msix, appx |
+| Fonts | — | ttf, otf, woff, woff2 |
+| 3D Prints | — | 3mf, stl, step, obj, gcode |
+
+Files with unrecognized extensions are left in place. Categories without subcategories sort directly into their folder.
 
 ## Setup
 
@@ -119,7 +121,7 @@ Opens a dashboard at `http://localhost:5000` with:
   - Sections ordered and color-coded to match sorting priority (red=skip, green=match, blue=fallback)
   - Collapsible tree view for file categories with extension counts
   - Clients (add/remove clients and keywords)
-  - Client sub-categories (keywords + extensions per sub-category)
+  - Client sub-categories with nested tree view (keywords + extensions per sub-category)
   - Ignore list (glob patterns)
   - Regex rules (pattern → folder) with collapsible cheat sheet for beginners
   - Export/import settings as JSON for backup or sharing
@@ -195,35 +197,43 @@ CLIENTS = {
 }
 ```
 
-Sub-categories are matched by **keyword first, then file extension** as fallback:
+Sub-categories support nested paths using `/` (same as file categories). They are matched by **keyword first, then file extension** as fallback:
 
 ```python
 CLIENT_SUBCATEGORIES = {
-    "01. Commercial": {
-        "keywords": ["commercial", "proposal", "quote", "invoice"],
-        "extensions": {".pdf", ".docx", ".pptx", ".xlsx"},
+    "01. Commercial/Proposals": {
+        "keywords": ["proposal", "quote", "tender"],
+        "extensions": {".ppt", ".pptx"},
     },
-    "02. Documentation": {
-        "keywords": ["documentation", "manual", "guide", "spec"],
-        "extensions": {".txt", ".md", ".csv"},
+    "01. Commercial/Contracts": {
+        "keywords": ["contract", "commercial", "invoice"],
+        "extensions": {".pdf", ".doc", ".docx", ".xlsx", ".xls"},
     },
-    "03. Development": {
-        "keywords": ["dev", "source", "code", "deploy", "build"],
-        "extensions": {".py", ".js", ".sql", ".zip", ".json"},
+    "02. Documentation/Manuals": {
+        "keywords": ["manual", "guide", "sop"],
+        "extensions": {".txt", ".md", ".rtf", ".epub"},
+    },
+    "03. Development/Source": {
+        "keywords": ["dev", "source", "code"],
+        "extensions": {".py", ".js", ".ts", ".html", ".css"},
     },
 }
 ```
 
-Keyword match wins over extension. For example, `AKSS_dev_report.pdf` goes to `03. Development` (keyword "dev") even though `.pdf` would normally map to `01. Commercial`.
+Keyword match wins over extension. For example, `AKSS_dev_report.pdf` goes to `03. Development/Source` (keyword "dev") even though `.pdf` would normally map to `01. Commercial/Contracts`.
 
 ```
 Downloads/
   AKSS/
-    01. Commercial/     <- AKSS_proposal.txt (keyword), AKSS_summary.pdf (extension)
-    02. Documentation/  <- AKSS_manual.pdf (keyword), AKSS_notes.txt (extension)
-    03. Development/    <- AKSS_dev_report.pdf (keyword), AKSS_app.zip (extension)
-    AKSS_data.xyz       <- no keyword or extension match -> client root
-  Documents/            <- non-client files sort normally
+    01. Commercial/
+      Proposals/          <- AKSS_proposal.txt (keyword "proposal")
+      Contracts/          <- AKSS_summary.pdf (extension .pdf)
+    02. Documentation/
+      Manuals/            <- AKSS_manual.pdf (keyword "manual")
+    03. Development/
+      Source/             <- AKSS_dev_report.pdf (keyword "dev")
+    AKSS_data.xyz         <- no keyword or extension match -> client root
+  Documents/              <- non-client files sort normally
   Images/
 ```
 
@@ -254,16 +264,17 @@ Leave the dict empty to disable.
 
 ### Custom Categories
 
-Add or modify categories:
+Add or modify categories. Use `/` to create nested subcategories:
 
 ```python
 CATEGORIES = {
-    "3D Prints": {".3mf", ".stl", ".step", ".obj", ".gcode"},
+    "Documents/Reports": {".pdf", ".docx"},   # nested: Documents/Reports/
+    "3D Prints": {".3mf", ".stl", ".gcode"},  # flat: 3D Prints/
     # ... existing categories
 }
 ```
 
-The subfolder is created automatically — no other code changes needed.
+The subfolder hierarchy is created automatically — no other code changes needed.
 
 ## Sorting Priority
 

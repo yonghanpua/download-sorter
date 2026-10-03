@@ -624,10 +624,24 @@ async function refresh(){
     const sel=document.getElementById('dateFilter'), prev=sel.value;
     sel.innerHTML='<option value="">All dates</option>'+(d.available_dates||[]).map(dt=>'<option value="'+dt+'"'+(dt===prev?' selected':'')+'>'+dt+'</option>').join('');
     const catSel=document.getElementById('categoryFilter'), prevCat=catSel.value;
-    catSel.innerHTML='<option value="">All categories</option>'+(d.available_categories||[]).map(c=>'<option value="'+escapeHtml(c)+'"'+(c===prevCat?' selected':'')+'>'+escapeHtml(c)+'</option>').join('');
-    getCategoryColors(d.available_categories||[]);
-    const catLabels=Object.keys(d.categories);
-    catChart.data.labels=catLabels; catChart.data.datasets[0].data=Object.values(d.categories);
+    const acats=d.available_categories||[];
+    let catOpts='<option value="">All categories</option>';
+    const catGroups={};
+    acats.forEach(c=>{const p=c.split('/')[0];if(!catGroups[p])catGroups[p]=[];catGroups[p].push(c);});
+    for(const [p,subs] of Object.entries(catGroups)){
+        if(subs.length===1&&subs[0]===p){catOpts+='<option value="'+escapeHtml(p)+'"'+(p===prevCat?' selected':'')+'>'+escapeHtml(p)+'</option>';}
+        else{catOpts+='<optgroup label="'+escapeHtml(p)+'">';subs.forEach(c=>{const label=c.includes('/')?'  '+c.split('/').slice(1).join('/'):c;catOpts+='<option value="'+escapeHtml(c)+'"'+(c===prevCat?' selected':'')+'>'+escapeHtml(label)+'</option>';});catOpts+='</optgroup>';}
+    }
+    catSel.innerHTML=catOpts;
+    const parentCats = (d.available_categories||[]).map(c=>c.split('/')[0]).filter((v,i,a)=>a.indexOf(v)===i);
+    getCategoryColors(parentCats);
+    const grouped={};
+    for(const [cat,cnt] of Object.entries(d.categories)){
+        const parent=cat.split('/')[0];
+        grouped[parent]=(grouped[parent]||0)+cnt;
+    }
+    const catLabels=Object.keys(grouped);
+    catChart.data.labels=catLabels; catChart.data.datasets[0].data=Object.values(grouped);
     catChart.data.datasets[0].backgroundColor=getCategoryColors(catLabels); catChart.update();
     hourChart.data.datasets[0].data=Array.from({length:24},(_,i)=>d.hourly[i]||0); hourChart.update();
     dailyChart.data.labels=Object.keys(d.daily); dailyChart.data.datasets[0].data=Object.values(d.daily); dailyChart.update();
@@ -833,6 +847,11 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
     border-top: 1px solid var(--border); background: rgba(0,0,0,0.15);
 }
 .tree-node.open > .tree-body { display: block; }
+.tree-group > .tree-body { padding-left: 0; }
+.tree-group > .tree-body > .tree-sub { border-bottom: 1px solid var(--border); }
+.tree-group > .tree-body > .tree-sub:last-child { border-bottom: none; }
+.tree-sub > .tree-row { padding-left: 32px; }
+.tree-sub > .tree-body { padding-left: 52px; }
 .actions-bar {
     display: flex; gap: 8px; margin-top: 20px; padding-top: 16px;
     border-top: 1px solid var(--border);
@@ -1096,7 +1115,7 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
     </div>
     <div id="subcatContainer"></div>
     <div class="add-row" style="margin-top:10px">
-        <input type="text" id="newSubcatInput" placeholder="New sub-category name (e.g. 04. Design)" onkeydown="if(event.key==='Enter')addSubcat()">
+        <input type="text" id="newSubcatInput" placeholder="Sub-category name (e.g. 04. Design or 01. Commercial/Tenders)" onkeydown="if(event.key==='Enter')addSubcat()">
         <button class="btn btn-sm btn-primary" onclick="addSubcat()">Add</button>
     </div>
 </div>
@@ -1153,7 +1172,7 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
     </div>
     <div class="tree" id="catContainer"></div>
     <div class="add-row" style="margin-top:10px">
-        <input type="text" id="newCatInput" placeholder="New category name (e.g. Spreadsheets)" onkeydown="if(event.key==='Enter')addCategory()">
+        <input type="text" id="newCatInput" placeholder="Category name (e.g. Documents/Reports or Misc)" onkeydown="if(event.key==='Enter')addCategory()">
         <button class="btn btn-sm btn-primary" onclick="addCategory()">Add</button>
     </div>
 </div>
@@ -1194,16 +1213,60 @@ function toggleTreeNode(el) {
 function renderCategories() {
     const c = document.getElementById('catContainer');
     c.innerHTML = '';
-    const entries = Object.entries(S.categories);
-    for (const [name, exts] of entries) {
+    const groups = {};
+    const flat = [];
+    for (const [name, exts] of Object.entries(S.categories)) {
+        const slash = name.indexOf('/');
+        if (slash > 0) {
+            const parent = name.slice(0, slash);
+            const child = name.slice(slash + 1);
+            if (!groups[parent]) groups[parent] = [];
+            groups[parent].push({full: name, child, exts});
+        } else {
+            flat.push({full: name, child: null, exts});
+        }
+    }
+    for (const [parent, children] of Object.entries(groups)) {
+        const totalExts = children.reduce((s, ch) => s + ch.exts.length, 0);
+        const groupNode = document.createElement('div');
+        groupNode.className = 'tree-node tree-group';
+        const eParent = escapeHtml(parent);
+        let groupHtml = '<div class="tree-row" onclick="toggleTreeNode(this)">'
+            + '<span class="tree-chevron">&#9654;</span>'
+            + '<span class="tree-name" style="font-weight:700">' + eParent + '</span>'
+            + '<span class="tree-count">' + children.length + ' sub, ' + totalExts + ' ext' + (totalExts !== 1 ? 's' : '') + '</span>'
+            + '</div><div class="tree-body">';
+        children.forEach(ch => {
+            const eFull = escapeHtml(ch.full);
+            const eChild = escapeHtml(ch.child);
+            groupHtml += '<div class="tree-node tree-sub" data-name="' + eFull + '">'
+                + '<div class="tree-row" onclick="toggleTreeNode(this)">'
+                + '<span class="tree-chevron">&#9654;</span>'
+                + '<span class="tree-name">' + eChild + '</span>'
+                + '<span class="tree-count">' + ch.exts.length + ' ext' + (ch.exts.length !== 1 ? 's' : '') + '</span>'
+                + '<button class="tree-remove" onclick="event.stopPropagation();removeCategory(\'' + eFull + '\')">&times;</button>'
+                + '</div>'
+                + '<div class="tree-body"><div class="tag-list"></div>'
+                + '<div class="add-row"><input type="text" placeholder=".ext" onkeydown="if(event.key===\'Enter\')addExt(this,\'' + eFull + '\')"><button class="btn btn-sm btn-primary" onclick="addExt(this.previousElementSibling,\'' + eFull + '\')">Add</button></div>'
+                + '</div></div>';
+        });
+        groupHtml += '</div>';
+        groupNode.innerHTML = groupHtml;
+        c.appendChild(groupNode);
+        groupNode.querySelectorAll('.tree-sub').forEach((sub, i) => {
+            const tagList = sub.querySelector('.tag-list');
+            children[i].exts.forEach(ext => tagList.appendChild(makeTag(ext)));
+        });
+    }
+    for (const item of flat) {
         const node = document.createElement('div');
         node.className = 'tree-node';
-        node.dataset.name = name;
-        const eName = escapeHtml(name);
+        node.dataset.name = item.full;
+        const eName = escapeHtml(item.full);
         node.innerHTML = '<div class="tree-row" onclick="toggleTreeNode(this)">'
             + '<span class="tree-chevron">&#9654;</span>'
             + '<span class="tree-name">' + eName + '</span>'
-            + '<span class="tree-count">' + exts.length + ' ext' + (exts.length !== 1 ? 's' : '') + '</span>'
+            + '<span class="tree-count">' + item.exts.length + ' ext' + (item.exts.length !== 1 ? 's' : '') + '</span>'
             + '<button class="tree-remove" onclick="event.stopPropagation();removeCategory(\'' + eName + '\')">&times;</button>'
             + '</div>'
             + '<div class="tree-body">'
@@ -1212,7 +1275,7 @@ function renderCategories() {
             + '</div>';
         c.appendChild(node);
         const tagList = node.querySelector('.tag-list');
-        exts.forEach(ext => tagList.appendChild(makeTag(ext)));
+        item.exts.forEach(ext => tagList.appendChild(makeTag(ext)));
     }
 }
 
@@ -1233,26 +1296,68 @@ function renderClients() {
     }
 }
 
+function subcatCardHtml(full, label, rules) {
+    const eFull = escapeHtml(full);
+    const eLabel = escapeHtml(label);
+    return '<div class="cat-card" data-name="' + eFull + '">'
+        + '<div class="cat-header"><strong>' + eLabel + '</strong>'
+        + '<button class="btn btn-sm btn-danger" onclick="removeSubcat(\'' + eFull + '\')">&times;</button></div>'
+        + '<div style="margin-bottom:8px"><label style="font-size:11px;color:var(--muted);font-weight:600">Keywords</label>'
+        + '<div class="tag-list" data-role="subcat-kw"></div>'
+        + '<div class="add-row"><input type="text" placeholder="keyword" onkeydown="if(event.key===\'Enter\')addSubcatKw(this,\'' + eFull + '\')"><button class="btn btn-sm btn-primary" onclick="addSubcatKw(this.previousElementSibling,\'' + eFull + '\')">Add</button></div></div>'
+        + '<div><label style="font-size:11px;color:var(--muted);font-weight:600">Extensions</label>'
+        + '<div class="tag-list" data-role="subcat-ext"></div>'
+        + '<div class="add-row"><input type="text" placeholder=".ext" onkeydown="if(event.key===\'Enter\')addSubcatExt(this,\'' + eFull + '\')"><button class="btn btn-sm btn-primary" onclick="addSubcatExt(this.previousElementSibling,\'' + eFull + '\')">Add</button></div></div>'
+        + '</div>';
+}
+
+function populateSubcatTags(container, rules) {
+    const kwList = container.querySelector('[data-role="subcat-kw"]');
+    const extList = container.querySelector('[data-role="subcat-ext"]');
+    (rules.keywords || []).forEach(kw => kwList.appendChild(makeTag(kw)));
+    (rules.extensions || []).forEach(ext => extList.appendChild(makeTag(ext)));
+}
+
 function renderSubcats() {
     const c = document.getElementById('subcatContainer');
     c.innerHTML = '';
+    const groups = {};
+    const flat = [];
     for (const [name, rules] of Object.entries(S.client_subcategories)) {
-        const card = document.createElement('div');
-        card.className = 'cat-card';
-        card.dataset.name = name;
-        card.innerHTML = '<div class="cat-header"><strong>' + escapeHtml(name) + '</strong>'
-            + '<button class="btn btn-sm btn-danger" onclick="removeSubcat(\'' + escapeHtml(name) + '\')">&times;</button></div>'
-            + '<div style="margin-bottom:8px"><label style="font-size:11px;color:var(--muted);font-weight:600">Keywords</label>'
-            + '<div class="tag-list" data-role="subcat-kw"></div>'
-            + '<div class="add-row"><input type="text" placeholder="keyword" onkeydown="if(event.key===\'Enter\')addSubcatKw(this,\'' + escapeHtml(name) + '\')"><button class="btn btn-sm btn-primary" onclick="addSubcatKw(this.previousElementSibling,\'' + escapeHtml(name) + '\')">Add</button></div></div>'
-            + '<div><label style="font-size:11px;color:var(--muted);font-weight:600">Extensions</label>'
-            + '<div class="tag-list" data-role="subcat-ext"></div>'
-            + '<div class="add-row"><input type="text" placeholder=".ext" onkeydown="if(event.key===\'Enter\')addSubcatExt(this,\'' + escapeHtml(name) + '\')"><button class="btn btn-sm btn-primary" onclick="addSubcatExt(this.previousElementSibling,\'' + escapeHtml(name) + '\')">Add</button></div></div>';
+        const slash = name.indexOf('/');
+        if (slash > 0) {
+            const parent = name.slice(0, slash);
+            const child = name.slice(slash + 1);
+            if (!groups[parent]) groups[parent] = [];
+            groups[parent].push({full: name, child, rules});
+        } else {
+            flat.push({full: name, rules});
+        }
+    }
+    for (const [parent, children] of Object.entries(groups)) {
+        const groupNode = document.createElement('div');
+        groupNode.className = 'tree-node tree-group';
+        const totalKw = children.reduce((s, ch) => s + (ch.rules.keywords||[]).length, 0);
+        const totalExt = children.reduce((s, ch) => s + (ch.rules.extensions||[]).length, 0);
+        let html = '<div class="tree-row" onclick="toggleTreeNode(this)">'
+            + '<span class="tree-chevron">&#9654;</span>'
+            + '<span class="tree-name" style="font-weight:700">' + escapeHtml(parent) + '</span>'
+            + '<span class="tree-count">' + children.length + ' sub, ' + totalKw + ' kw, ' + totalExt + ' ext</span>'
+            + '</div><div class="tree-body" style="padding-left:0">';
+        children.forEach(ch => { html += subcatCardHtml(ch.full, ch.child, ch.rules); });
+        html += '</div>';
+        groupNode.innerHTML = html;
+        c.appendChild(groupNode);
+        groupNode.querySelectorAll('.cat-card').forEach((card, i) => {
+            populateSubcatTags(card, children[i].rules);
+        });
+    }
+    for (const item of flat) {
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = subcatCardHtml(item.full, item.full, item.rules);
+        const card = wrapper.firstChild;
         c.appendChild(card);
-        const kwList = card.querySelector('[data-role="subcat-kw"]');
-        const extList = card.querySelector('[data-role="subcat-ext"]');
-        (rules.keywords || []).forEach(kw => kwList.appendChild(makeTag(kw)));
-        (rules.extensions || []).forEach(ext => extList.appendChild(makeTag(ext)));
+        populateSubcatTags(card, item.rules);
     }
 }
 
@@ -1293,9 +1398,10 @@ function collectState() {
     data.watched_folders = S.watched_folders || [];
 
     data.categories = {};
-    document.querySelectorAll('#catContainer .tree-node').forEach(node => {
+    document.querySelectorAll('#catContainer .tree-node[data-name]').forEach(node => {
         const name = node.dataset.name;
-        const exts = Array.from(node.querySelectorAll('.tag-list .tag')).map(t => t.textContent.replace('×', '').trim());
+        const tagList = node.querySelector(':scope > .tree-body > .tag-list') || node.querySelector('.tag-list');
+        const exts = Array.from(tagList.querySelectorAll('.tag')).map(t => t.textContent.replace('×', '').trim());
         data.categories[name] = exts;
     });
 
@@ -1307,7 +1413,7 @@ function collectState() {
     });
 
     data.client_subcategories = {};
-    document.querySelectorAll('#subcatContainer .cat-card').forEach(card => {
+    document.querySelectorAll('#subcatContainer .cat-card[data-name]').forEach(card => {
         const name = card.dataset.name;
         const kws = Array.from(card.querySelectorAll('[data-role="subcat-kw"] .tag')).map(t => t.textContent.replace('×', '').trim());
         const exts = Array.from(card.querySelectorAll('[data-role="subcat-ext"] .tag')).map(t => t.textContent.replace('×', '').trim());

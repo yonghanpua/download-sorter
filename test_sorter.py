@@ -127,13 +127,13 @@ class TestIsTempFile:
 
 class TestGetCategory:
     def test_pdf_is_documents(self, tmp_path):
-        assert get_category(tmp_path / "file.pdf") == "Documents"
+        assert get_category(tmp_path / "file.pdf") == "Documents/PDFs"
 
     def test_jpg_is_images(self, tmp_path):
-        assert get_category(tmp_path / "file.jpg") == "Images"
+        assert get_category(tmp_path / "file.jpg") == "Images/Photos"
 
     def test_mp4_is_media(self, tmp_path):
-        assert get_category(tmp_path / "file.mp4") == "Media"
+        assert get_category(tmp_path / "file.mp4") == "Media/Video"
 
     def test_zip_is_archives(self, tmp_path):
         assert get_category(tmp_path / "file.zip") == "Archives"
@@ -142,7 +142,7 @@ class TestGetCategory:
         assert get_category(tmp_path / "file.exe") == "Installers"
 
     def test_py_is_code(self, tmp_path):
-        assert get_category(tmp_path / "file.py") == "Code"
+        assert get_category(tmp_path / "file.py") == "Code/Scripts"
 
     def test_ttf_is_fonts(self, tmp_path):
         assert get_category(tmp_path / "file.ttf") == "Fonts"
@@ -154,7 +154,7 @@ class TestGetCategory:
         assert get_category(tmp_path / "file.xyz") is None
 
     def test_case_insensitive(self, tmp_path):
-        assert get_category(tmp_path / "file.PDF") == "Documents"
+        assert get_category(tmp_path / "file.PDF") == "Documents/PDFs"
 
 
 # --- get_client ---
@@ -180,21 +180,21 @@ class TestGetClient:
 
 class TestGetClientSubcategory:
     def test_keyword_proposal(self, tmp_path):
-        assert get_client_subcategory(tmp_path / "AKSS_proposal.txt") == "01. Commercial"
+        assert get_client_subcategory(tmp_path / "AKSS_proposal.txt") == "01. Commercial/Proposals"
 
     def test_keyword_dev(self, tmp_path):
-        assert get_client_subcategory(tmp_path / "AKSS_dev_report.pdf") == "03. Development"
+        assert get_client_subcategory(tmp_path / "AKSS_dev_report.pdf") == "03. Development/Source"
 
     def test_keyword_manual(self, tmp_path):
-        assert get_client_subcategory(tmp_path / "AKSS_manual.pdf") == "02. Documentation"
+        assert get_client_subcategory(tmp_path / "AKSS_manual.pdf") == "02. Documentation/Manuals"
 
     def test_keyword_wins_over_extension(self, tmp_path):
         result = get_client_subcategory(tmp_path / "AKSS_dev_report.pdf")
-        assert result == "03. Development"
+        assert result == "03. Development/Source"
 
     def test_extension_fallback(self, tmp_path):
         result = get_client_subcategory(tmp_path / "AKSS_summary.pdf")
-        assert result == "01. Commercial"
+        assert result == "01. Commercial/Contracts"
 
     def test_no_match(self, tmp_path):
         assert get_client_subcategory(tmp_path / "AKSS_data.xyz") is None
@@ -227,7 +227,7 @@ class TestSortFile:
         f = tmp_path / "report.pdf"
         f.write_text("test")
         result = sort_file(f, tmp_path)
-        assert result == tmp_path / "Documents" / "report.pdf"
+        assert result == tmp_path / "Documents" / "PDFs" / "report.pdf"
         assert result.exists()
         assert not f.exists()
 
@@ -249,8 +249,8 @@ class TestSortFile:
         assert f.exists()
 
     def test_handles_duplicate(self, tmp_path):
-        docs = tmp_path / "Documents"
-        docs.mkdir()
+        docs = tmp_path / "Documents" / "PDFs"
+        docs.mkdir(parents=True)
         (docs / "report.pdf").write_text("original")
         f = tmp_path / "report.pdf"
         f.write_text("new")
@@ -265,14 +265,14 @@ class TestSortFile:
         f = tmp_path / "AKSS_report.pdf"
         f.write_text("test")
         result = sort_file(f, tmp_path)
-        assert result == tmp_path / "AKSS" / "01. Commercial" / "AKSS_report.pdf"
+        assert result == tmp_path / "AKSS" / "01. Commercial" / "Contracts" / "AKSS_report.pdf"
         assert result.exists()
 
     def test_client_keyword_priority(self, tmp_path):
         f = tmp_path / "AKSS_dev_notes.pdf"
         f.write_text("test")
         result = sort_file(f, tmp_path)
-        assert result == tmp_path / "AKSS" / "03. Development" / "AKSS_dev_notes.pdf"
+        assert result == tmp_path / "AKSS" / "03. Development" / "Source" / "AKSS_dev_notes.pdf"
 
     def test_client_no_subcategory(self, tmp_path):
         f = tmp_path / "AKSS_data.xyz"
@@ -284,7 +284,7 @@ class TestSortFile:
         f = tmp_path / "AKSS_proposal.docx"
         f.write_text("test")
         sort_file(f, tmp_path)
-        assert (tmp_path / "AKSS" / "01. Commercial").is_dir()
+        assert (tmp_path / "AKSS" / "01. Commercial" / "Proposals").is_dir()
 
     def test_records_to_database(self, tmp_path):
         f = tmp_path / "report.pdf"
@@ -292,7 +292,7 @@ class TestSortFile:
         sort_file(f, tmp_path)
         records = db.get_pending_undos()
         assert len(records) == 1
-        assert records[0]["category"] == "Documents"
+        assert records[0]["category"] == "Documents/PDFs"
 
 
 # --- sweep ---
@@ -304,8 +304,8 @@ class TestSweep:
         (tmp_path / "app.exe").write_text("exe")
         count = sweep(tmp_path)
         assert count == 3
-        assert (tmp_path / "Images" / "photo.jpg").exists()
-        assert (tmp_path / "Documents" / "report.pdf").exists()
+        assert (tmp_path / "Images" / "Photos" / "photo.jpg").exists()
+        assert (tmp_path / "Documents" / "PDFs" / "report.pdf").exists()
         assert (tmp_path / "Installers" / "app.exe").exists()
 
     def test_skips_directories(self, tmp_path):
@@ -341,13 +341,13 @@ class TestUndo:
         f = tmp_path / "report.pdf"
         f.write_text("test")
         sort_file(f, tmp_path)
-        assert (tmp_path / "Documents" / "report.pdf").exists()
+        assert (tmp_path / "Documents" / "PDFs" / "report.pdf").exists()
         assert not f.exists()
 
         undone = undo(1)
         assert undone == 1
         assert f.exists()
-        assert not (tmp_path / "Documents" / "report.pdf").exists()
+        assert not (tmp_path / "Documents" / "PDFs" / "report.pdf").exists()
 
     def test_undo_multiple(self, tmp_path):
         f1 = tmp_path / "photo.jpg"
@@ -381,7 +381,7 @@ class TestUndo:
         f = tmp_path / "report.pdf"
         f.write_text("test")
         sort_file(f, tmp_path)
-        (tmp_path / "Documents" / "report.pdf").unlink()
+        (tmp_path / "Documents" / "PDFs" / "report.pdf").unlink()
 
         undone = undo(1)
         assert undone == 0
@@ -429,6 +429,6 @@ class TestUndoSelected:
         f = tmp_path / "report.pdf"
         f.write_text("test")
         sort_file(f, tmp_path)
-        (tmp_path / "Documents" / "report.pdf").unlink()
+        (tmp_path / "Documents" / "PDFs" / "report.pdf").unlink()
         records = db.get_pending_undos()
         assert undo_selected([records[0]["id"]]) == 0

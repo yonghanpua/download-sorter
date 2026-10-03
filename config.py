@@ -40,20 +40,26 @@ REGEX_RULES: dict[str, str] = {
 }
 
 CATEGORIES = {
-    "Documents": {
-        ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
-        ".txt", ".rtf", ".odt", ".ods", ".odp", ".csv", ".md",
-        ".epub", ".mobi",
+    "Documents/PDFs": {".pdf"},
+    "Documents/Word": {".doc", ".docx", ".odt", ".rtf"},
+    "Documents/Spreadsheets": {".xls", ".xlsx", ".ods", ".csv"},
+    "Documents/Presentations": {".ppt", ".pptx", ".odp"},
+    "Documents/Text": {".txt", ".md"},
+    "Documents/eBooks": {".epub", ".mobi"},
+    "Images/Photos": {
+        ".jpg", ".jpeg", ".png", ".heic", ".heif", ".raw", ".jfif",
     },
-    "Images": {
-        ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".svg", ".webp",
-        ".ico", ".tiff", ".tif", ".heic", ".heif", ".raw", ".psd",
-        ".ai", ".avif", ".jfif", ".jxl",
+    "Images/Graphics": {
+        ".gif", ".bmp", ".webp", ".avif", ".jxl", ".tiff", ".tif",
     },
-    "Media": {
-        ".mp3", ".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv",
-        ".wav", ".flac", ".aac", ".ogg", ".wma", ".m4a", ".m4v",
+    "Images/Vector": {".svg", ".ai"},
+    "Images/Design": {".psd", ".ico"},
+    "Media/Video": {
+        ".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv", ".m4v",
         ".webm", ".3gp",
+    },
+    "Media/Audio": {
+        ".mp3", ".wav", ".flac", ".aac", ".ogg", ".wma", ".m4a",
     },
     "Archives": {
         ".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz",
@@ -62,11 +68,12 @@ CATEGORIES = {
     "Installers": {
         ".exe", ".msi", ".msix", ".appx", ".deb", ".rpm",
     },
-    "Code": {
-        ".py", ".js", ".ts", ".html", ".css", ".json", ".xml",
-        ".yaml", ".yml", ".sql", ".sh", ".bat", ".ps1", ".java",
-        ".c", ".cpp", ".h", ".cs", ".go", ".rs", ".rb", ".php",
+    "Code/Web": {".html", ".css", ".js", ".ts", ".json", ".xml"},
+    "Code/Scripts": {".py", ".sh", ".bat", ".ps1", ".rb", ".php"},
+    "Code/Compiled": {
+        ".java", ".c", ".cpp", ".h", ".cs", ".go", ".rs",
     },
+    "Code/Data": {".yaml", ".yml", ".sql"},
     "Fonts": {
         ".ttf", ".otf", ".woff", ".woff2", ".eot",
     },
@@ -81,20 +88,32 @@ CLIENTS: dict[str, list[str]] = {
 }
 
 CLIENT_SUBCATEGORIES: dict[str, dict] = {
-    "01. Commercial": {
-        "keywords": ["commercial", "proposal", "quote", "invoice", "contract", "tender"],
-        "extensions": {".pdf", ".doc", ".docx", ".ppt", ".pptx", ".xlsx", ".xls"},
+    "01. Commercial/Proposals": {
+        "keywords": ["proposal", "quote", "tender"],
+        "extensions": {".ppt", ".pptx"},
     },
-    "02. Documentation": {
-        "keywords": ["documentation", "manual", "guide", "spec", "requirement", "sop"],
-        "extensions": {".txt", ".md", ".csv", ".rtf", ".epub"},
+    "01. Commercial/Contracts": {
+        "keywords": ["contract", "commercial", "invoice"],
+        "extensions": {".pdf", ".doc", ".docx", ".xlsx", ".xls"},
     },
-    "03. Development": {
-        "keywords": ["dev", "source", "code", "deploy", "build", "release"],
+    "02. Documentation/Manuals": {
+        "keywords": ["manual", "guide", "sop"],
+        "extensions": {".txt", ".md", ".rtf", ".epub"},
+    },
+    "02. Documentation/Specs": {
+        "keywords": ["documentation", "spec", "requirement"],
+        "extensions": {".csv"},
+    },
+    "03. Development/Source": {
+        "keywords": ["dev", "source", "code"],
         "extensions": {
             ".py", ".js", ".ts", ".sql", ".json", ".xml", ".yaml", ".yml",
-            ".html", ".css", ".zip", ".7z", ".rar", ".tar", ".gz",
+            ".html", ".css",
         },
+    },
+    "03. Development/Builds": {
+        "keywords": ["deploy", "build", "release"],
+        "extensions": {".zip", ".7z", ".rar", ".tar", ".gz"},
     },
 }
 
