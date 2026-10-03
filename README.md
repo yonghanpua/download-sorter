@@ -12,7 +12,7 @@ A Python utility that automatically organizes your Downloads folder by sorting f
 - **Client sorting** — route files to client folders with sub-categories based on filename keywords
 - **Regex rules** — optional pattern-to-folder mapping for custom naming conventions
 - **Ignore list** — skip specific files or glob patterns from being sorted
-- **Undo** — reverse the last move, last N moves, or cherry-pick specific files to undo
+- **Undo** — reverse the last move, last N moves, cherry-pick specific files, or batch undo by time range
 - **SQLite history** — all moves tracked in a local database with full audit trail
 - **Web dashboard** — live stats, charts, date filtering, watcher control, and selective undo
 - **Browser settings** — edit all configuration (categories, clients, regex rules, ignore list) from the dashboard
@@ -106,6 +106,7 @@ Opens a dashboard at `http://localhost:5000` with:
 - Date picker to filter all stats and history by day
 - Start/stop the watcher (via tray integration or Task Scheduler fallback)
 - Sweep trigger button
+- Undo timeline — visual bar chart of moves over time; click two bars or use date pickers to select a range, then batch undo all moves in that range
 - Move history table with checkboxes for selective undo
 - Search/filter on history table by filename or destination
 - Paginated history with rows-per-page selector (10/25/50/100) and fixed-height table

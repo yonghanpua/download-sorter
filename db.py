@@ -86,6 +86,31 @@ def mark_undone(move_id: int):
         conn.execute("UPDATE moves SET undone = 1 WHERE id = ?", (move_id,))
 
 
+def get_timeline(category_filter: str | None = None) -> list[dict]:
+    with _connect() as conn:
+        dc = ""
+        dp: list = []
+        if category_filter:
+            dc = " AND category = ?"
+            dp = [category_filter]
+        rows = conn.execute(
+            f"SELECT id, timestamp, src, dest, category "
+            f"FROM moves WHERE undone = 0 {dc} ORDER BY timestamp",
+            dp,
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_moves_in_range(start: str, end: str) -> list[int]:
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT id FROM moves WHERE undone = 0 "
+            "AND timestamp >= ? AND timestamp <= ? ORDER BY id",
+            (start, end),
+        ).fetchall()
+        return [r[0] for r in rows]
+
+
 def get_stats(date_filter: str | None = None,
               category_filter: str | None = None) -> dict:
     with _connect() as conn:

@@ -211,6 +211,24 @@ def api_undo_selected():
     return jsonify({"ok": True, "undone": undone})
 
 
+@app.route("/api/timeline")
+def api_timeline():
+    category_filter = request.args.get("category") or None
+    rows = db.get_timeline(category_filter)
+    return jsonify(rows)
+
+
+@app.route("/api/undo-range", methods=["POST"])
+def api_undo_range():
+    start = request.json.get("start")
+    end = request.json.get("end")
+    if not start or not end:
+        return jsonify({"ok": False, "error": "start and end required"}), 400
+    ids = db.get_moves_in_range(start, end)
+    undone = undo_selected(ids)
+    return jsonify({"ok": True, "undone": undone, "total": len(ids)})
+
+
 @app.route("/api/watcher", methods=["POST"])
 def api_watcher():
     if _is_task_running():
@@ -402,6 +420,20 @@ input[type="checkbox"] { cursor: pointer; accent-color: var(--primary); }
 }
 .undo-bar.visible { display: flex; }
 .selected-count { font-weight: 600; color: var(--primary); }
+.timeline-controls {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    margin-top: 10px; font-size: 13px;
+}
+.timeline-controls input[type="datetime-local"] {
+    padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--card); color: var(--text); font-size: 12px;
+}
+.timeline-controls .range-count {
+    font-weight: 600; color: var(--primary); min-width: 80px;
+}
+.timeline-hint {
+    font-size: 11px; color: var(--muted); margin-top: 4px;
+}
 .pagination {
     display: flex; justify-content: center; align-items: center;
     gap: 4px; padding: 12px 0 4px; font-size: 13px;
@@ -462,6 +494,18 @@ input[type="checkbox"] { cursor: pointer; accent-color: var(--primary); }
 </div>
 
 <div class="chart-card">
+    <h3>Undo Timeline</h3>
+    <canvas id="timelineChart" height="100"></canvas>
+    <div class="timeline-controls">
+        <label>From <input type="datetime-local" id="tlFrom" onchange="updateTimelineCount()"></label>
+        <label>To <input type="datetime-local" id="tlTo" onchange="updateTimelineCount()"></label>
+        <span class="range-count" id="tlCount"></span>
+        <button class="btn btn-warning btn-sm" id="tlUndoBtn" onclick="undoRange()" disabled>Undo Range</button>
+    </div>
+    <p class="timeline-hint">Click and drag on the chart to select a time range, or use the date inputs above.</p>
+</div>
+
+<div class="chart-card">
     <div class="section-header">
         <h3>Move History</h3>
         <input type="text" id="historySearch" placeholder="Search files..." oninput="filterHistory()"
@@ -491,7 +535,8 @@ function getCategoryColors(labels) {
     labels.forEach(l => { if (!(l in categoryColorMap)) categoryColorMap[l] = COLORS[Object.keys(categoryColorMap).length % COLORS.length]; });
     return labels.map(l => categoryColorMap[l]);
 }
-let catChart = null, hourChart = null, dailyChart = null;
+let catChart = null, hourChart = null, dailyChart = null, timelineChart = null;
+let timelineData = [];
 let watching = false;
 let currentDate = '';
 let currentCategory = '';
@@ -560,6 +605,7 @@ function initCharts(){
     catChart=new Chart(document.getElementById('catChart'),{type:'doughnut',data:{labels:[],datasets:[{data:[],backgroundColor:[]}]},options:{...o,responsive:true,plugins:{legend:{position:'bottom',labels:{boxWidth:12,padding:8,font:{size:11}}}}}});
     hourChart=new Chart(document.getElementById('hourChart'),{type:'bar',data:{labels:Array.from({length:24},(_,i)=>String(i).padStart(2,'0')+':00'),datasets:[{data:new Array(24).fill(0),backgroundColor:'#2563eb88',borderRadius:4}]},options:{...o,responsive:true,plugins:{legend:{display:false}},scales:{x:{grid:{display:false}},y:{beginAtZero:true}}}});
     dailyChart=new Chart(document.getElementById('dailyChart'),{type:'line',data:{labels:[],datasets:[{data:[],borderColor:'#2563eb',backgroundColor:'#2563eb22',fill:true,tension:0.3,pointRadius:4}]},options:{...o,responsive:true,plugins:{legend:{display:false}},scales:{x:{grid:{display:false}},y:{beginAtZero:true}}}});
+    timelineChart=new Chart(document.getElementById('timelineChart'),{type:'bar',data:{labels:[],datasets:[{data:[],backgroundColor:[]}]},options:{...o,responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{title:function(items){return items[0]?.label||'';},label:function(ctx){return ctx.raw+' file(s)';}}}},scales:{x:{grid:{display:false},ticks:{maxRotation:45,font:{size:10}}},y:{beginAtZero:true,ticks:{stepSize:1}}},onClick:function(evt,el){if(el.length){const idx=el[0].index;const label=timelineChart.data.labels[idx];onTimelineClick(label);}}}});
 }
 async function refresh(){
     const params=new URLSearchParams();
@@ -590,7 +636,90 @@ async function refresh(){
     totalItems=h.total;
     renderHistory();
     renderPagination();
+    refreshTimeline();
 }
+async function refreshTimeline(){
+    const catParam=currentCategory?'?category='+encodeURIComponent(currentCategory):'';
+    const tr=await fetch('/api/timeline'+catParam);
+    timelineData=await tr.json();
+    const buckets={};
+    timelineData.forEach(m=>{
+        const h=m.timestamp.slice(0,13);
+        buckets[h]=(buckets[h]||0)+1;
+    });
+    const labels=Object.keys(buckets).sort();
+    const data=labels.map(l=>buckets[l]);
+    const fromEl=document.getElementById('tlFrom'),toEl=document.getElementById('tlTo');
+    const selFrom=fromEl.value?fromEl.value.replace('T',' '):'';
+    const selTo=toEl.value?toEl.value.replace('T',' '):'';
+    const colors=labels.map(l=>{
+        const hStart=l+':00:00';
+        const hEnd=l+':59:59';
+        if(selFrom&&selTo&&hStart>=selFrom&&hEnd<=selTo+':59') return '#d97706';
+        return '#2563eb88';
+    });
+    timelineChart.data.labels=labels.map(l=>{const d=new Date(l+':00:00');return d.toLocaleDateString('en',{month:'short',day:'numeric'})+' '+d.toLocaleTimeString('en',{hour:'2-digit',minute:'2-digit',hour12:false});});
+    timelineChart.data.datasets[0].data=data;
+    timelineChart.data.datasets[0].backgroundColor=colors;
+    timelineChart.data._rawLabels=labels;
+    timelineChart.update();
+}
+
+function onTimelineClick(label){
+    const idx=timelineChart.data.labels.indexOf(label);
+    const rawLabels=timelineChart.data._rawLabels;
+    if(idx<0||!rawLabels) return;
+    const raw=rawLabels[idx];
+    const fromEl=document.getElementById('tlFrom'),toEl=document.getElementById('tlTo');
+    if(!fromEl.value||toEl.value){
+        fromEl.value=raw.replace(' ','T')+':00';
+        toEl.value='';
+    } else {
+        const clickVal=raw.replace(' ','T')+':59';
+        if(clickVal<fromEl.value){
+            toEl.value=fromEl.value.slice(0,16);
+            fromEl.value=raw.replace(' ','T')+':00';
+        } else {
+            toEl.value=clickVal;
+        }
+    }
+    updateTimelineCount();
+}
+
+function updateTimelineCount(){
+    const fromEl=document.getElementById('tlFrom'),toEl=document.getElementById('tlTo');
+    const btn=document.getElementById('tlUndoBtn');
+    const countEl=document.getElementById('tlCount');
+    if(!fromEl.value||!toEl.value){
+        countEl.textContent='';
+        btn.disabled=true;
+        refreshTimeline();
+        return;
+    }
+    const start=fromEl.value.replace('T',' ');
+    const end=toEl.value.replace('T',' ');
+    const count=timelineData.filter(m=>m.timestamp>=start&&m.timestamp<=end+':59').length;
+    countEl.textContent=count+' file(s) in range';
+    btn.disabled=count===0;
+    refreshTimeline();
+}
+
+async function undoRange(){
+    const fromEl=document.getElementById('tlFrom'),toEl=document.getElementById('tlTo');
+    if(!fromEl.value||!toEl.value) return;
+    const start=fromEl.value.replace('T',' ')+':00';
+    const end=toEl.value.replace('T',' ')+':59';
+    const count=timelineData.filter(m=>m.timestamp>=start&&m.timestamp<=end).length;
+    if(!confirm('Undo '+count+' file(s) from '+fromEl.value+' to '+toEl.value+'?')) return;
+    showToast('Undoing '+count+' file(s)...');
+    const d=await apiPost('/api/undo-range',{start,end});
+    showToast(d.undone?'Undone '+d.undone+' file(s)':'Nothing to undo');
+    fromEl.value='';toEl.value='';
+    document.getElementById('tlCount').textContent='';
+    document.getElementById('tlUndoBtn').disabled=true;
+    refresh();
+}
+
 function renderHistory(){
     const q=(document.getElementById('historySearch').value||'').toLowerCase();
     const filtered=q?historyItems.filter(i=>i.file.toLowerCase().includes(q)||i.dest_display.toLowerCase().includes(q)):historyItems;
