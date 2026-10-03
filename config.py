@@ -78,6 +78,7 @@ CATEGORIES = {
     "Code/Data": {".yaml", ".yml", ".sql"},
     "Data/Power BI": {".pbix", ".pbit"},
     "Data/Database": {".bak", ".dacpac", ".bacpac"},
+    "Design": {".vsdx", ".vsd", ".drawio", ".dwg", ".dxf"},
     "Ignition": {".gwbk"},
     "Fonts": {
         ".ttf", ".otf", ".woff", ".woff2", ".eot",
@@ -112,7 +113,7 @@ CLIENT_SUBCATEGORIES: dict[str, dict] = {
         "extensions": {".xlsx", ".xls"},
     },
     "02. Correspondence/Meeting Minutes": {
-        "keywords": ["minutes", "mom", "meeting"],
+        "keywords": ["minutes", "mom", "meeting", "agenda"],
         "extensions": set(),
     },
     "02. Correspondence/Transmittals": {
@@ -136,6 +137,48 @@ CLIENT_SUBCATEGORIES: dict[str, dict] = {
         "keywords": ["deploy", "build", "release", "backup"],
         "extensions": set(),
         "categories": ["Archives"],
+    },
+    "05. Data & Reporting/Dashboards": {
+        "keywords": ["powerbi", "dashboard"],
+        "extensions": set(),
+        "categories": ["Data/Power BI"],
+    },
+    "05. Data & Reporting/Reports": {
+        "keywords": ["report", "analytics"],
+        "extensions": set(),
+    },
+    "06. Design/Drawings": {
+        "keywords": ["design", "diagram", "taglist"],
+        "extensions": set(),
+        "categories": ["Design"],
+    },
+    "06. Design/Architecture": {
+        "keywords": ["architecture"],
+        "extensions": set(),
+    },
+    "07. Testing & Commissioning/Test Plans": {
+        "keywords": ["testplan", "testcase"],
+        "extensions": set(),
+    },
+    "07. Testing & Commissioning/Commissioning": {
+        "keywords": ["commissioning", "acceptance", "punchlist", "snag"],
+        "extensions": set(),
+    },
+    "08. Handover/As-Builts": {
+        "keywords": ["handover", "asbuilt", "as-built"],
+        "extensions": set(),
+    },
+    "08. Handover/Training": {
+        "keywords": ["training"],
+        "extensions": set(),
+    },
+    "09. Support/Incidents": {
+        "keywords": ["incident", "rootcause"],
+        "extensions": set(),
+    },
+    "09. Support/Tickets": {
+        "keywords": ["support", "ticket"],
+        "extensions": set(),
     },
 }
 

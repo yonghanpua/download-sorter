@@ -289,10 +289,10 @@ class TestSortFile:
         assert sort_file(tmp_path / "gone.pdf", tmp_path) is None
 
     def test_client_sorting(self, tmp_path):
-        f = tmp_path / "AKSS_report.pdf"
+        f = tmp_path / "AKSS_summary.pdf"
         f.write_text("test")
         result = sort_file(f, tmp_path)
-        assert result == tmp_path / "AKSS" / "01. Commercial" / "Contracts" / "AKSS_report.pdf"
+        assert result == tmp_path / "AKSS" / "01. Commercial" / "Contracts" / "AKSS_summary.pdf"
         assert result.exists()
 
     def test_client_keyword_priority(self, tmp_path):
@@ -337,11 +337,47 @@ class TestSortFile:
         monkeypatch.setattr(config, "CLIENT_PROJECT_MAP", {
             "AKSS": {"alpha": "Project Alpha"}
         })
-        f = tmp_path / "AKSS_report.pdf"
+        f = tmp_path / "AKSS_summary.pdf"
         f.write_text("test")
         result = sort_file(f, tmp_path)
-        assert result == tmp_path / "AKSS" / "01. Commercial" / "Contracts" / "AKSS_report.pdf"
+        assert result == tmp_path / "AKSS" / "01. Commercial" / "Contracts" / "AKSS_summary.pdf"
         assert result.exists()
+
+    def test_client_data_reporting(self, tmp_path):
+        f = tmp_path / "AKSS_dashboard_v2.pbix"
+        f.write_text("test")
+        result = sort_file(f, tmp_path)
+        assert result == tmp_path / "AKSS" / "05. Data & Reporting" / "Dashboards" / "AKSS_dashboard_v2.pbix"
+
+    def test_client_design(self, tmp_path):
+        f = tmp_path / "AKSS_system.vsdx"
+        f.write_text("test")
+        result = sort_file(f, tmp_path)
+        assert result == tmp_path / "AKSS" / "06. Design" / "Drawings" / "AKSS_system.vsdx"
+
+    def test_client_design_keyword(self, tmp_path):
+        f = tmp_path / "AKSS_architecture_overview.pdf"
+        f.write_text("test")
+        result = sort_file(f, tmp_path)
+        assert result == tmp_path / "AKSS" / "06. Design" / "Architecture" / "AKSS_architecture_overview.pdf"
+
+    def test_client_testing(self, tmp_path):
+        f = tmp_path / "AKSS_testplan_v1.docx"
+        f.write_text("test")
+        result = sort_file(f, tmp_path)
+        assert result == tmp_path / "AKSS" / "07. Testing & Commissioning" / "Test Plans" / "AKSS_testplan_v1.docx"
+
+    def test_client_handover(self, tmp_path):
+        f = tmp_path / "AKSS_handover_pack.pdf"
+        f.write_text("test")
+        result = sort_file(f, tmp_path)
+        assert result == tmp_path / "AKSS" / "08. Handover" / "As-Builts" / "AKSS_handover_pack.pdf"
+
+    def test_client_support(self, tmp_path):
+        f = tmp_path / "AKSS_incident_001.docx"
+        f.write_text("test")
+        result = sort_file(f, tmp_path)
+        assert result == tmp_path / "AKSS" / "09. Support" / "Incidents" / "AKSS_incident_001.docx"
 
     def test_records_to_database(self, tmp_path):
         f = tmp_path / "report.pdf"

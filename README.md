@@ -32,6 +32,7 @@ Categories support nested subcategories using `/` in the name (e.g. `Documents/P
 | Media | Video, Audio | mp3, mp4, avi, mkv, mov, wav, flac, and more |
 | Code | Web, Scripts, Compiled, Data | py, js, ts, cs, vbs, html, css, json, sql, sln, csproj, and more |
 | Data | Power BI, Database | pbix, pbit, bak, dacpac, bacpac |
+| Design | — | vsdx, vsd, drawio, dwg, dxf |
 | Archives | — | zip, rar, 7z, tar, gz, iso, and more |
 | Installers | — | exe, msi, msix, appx |
 | Ignition | — | gwbk |
@@ -240,7 +241,7 @@ CLIENT_SUBCATEGORIES = {
         "extensions": {".xlsx", ".xls"},
     },
     "02. Correspondence/Meeting Minutes": {
-        "keywords": ["minutes", "mom", "meeting"],
+        "keywords": ["minutes", "mom", "meeting", "agenda"],
         "extensions": set(),
     },
     "02. Correspondence/Transmittals": {
@@ -251,6 +252,38 @@ CLIENT_SUBCATEGORIES = {
     "03. Documentation/Specs": { ... },
     "04. Development/Source": { ... },
     "04. Development/Builds": { ... },
+    "05. Data & Reporting/Dashboards": {
+        "keywords": ["powerbi", "dashboard"],
+        "categories": ["Data/Power BI"],   # linked file category
+    },
+    "05. Data & Reporting/Reports": {
+        "keywords": ["report", "analytics"],
+    },
+    "06. Design/Drawings": {
+        "keywords": ["design", "diagram", "taglist"],
+        "categories": ["Design"],
+    },
+    "06. Design/Architecture": {
+        "keywords": ["architecture"],
+    },
+    "07. Testing & Commissioning/Test Plans": {
+        "keywords": ["testplan", "testcase"],
+    },
+    "07. Testing & Commissioning/Commissioning": {
+        "keywords": ["commissioning", "acceptance", "punchlist", "snag"],
+    },
+    "08. Handover/As-Builts": {
+        "keywords": ["handover", "asbuilt", "as-built"],
+    },
+    "08. Handover/Training": {
+        "keywords": ["training"],
+    },
+    "09. Support/Incidents": {
+        "keywords": ["incident", "rootcause"],
+    },
+    "09. Support/Tickets": {
+        "keywords": ["support", "ticket"],
+    },
 }
 ```
 
@@ -276,7 +309,22 @@ Downloads/
     03. Documentation/
       Manuals/                        <- AKSS_manual.pdf (keyword "manual")
     04. Development/
-      Source/                         <- AKSS_dev_report.pdf (keyword "dev")
+      Source/                         <- AKSS_dev_notes.py (keyword "dev")
+    05. Data & Reporting/
+      Dashboards/                     <- AKSS_dashboard_v2.pbix (keyword "dashboard")
+      Reports/                        <- AKSS_report_Q3.pdf (keyword "report")
+    06. Design/
+      Drawings/                       <- AKSS_system.vsdx (extension via Design category)
+      Architecture/                   <- AKSS_architecture_overview.pdf (keyword "architecture")
+    07. Testing & Commissioning/
+      Test Plans/                     <- AKSS_testplan_v1.docx (keyword "testplan")
+      Commissioning/                  <- AKSS_punchlist.xlsx (keyword "punchlist")
+    08. Handover/
+      As-Builts/                      <- AKSS_handover_pack.pdf (keyword "handover")
+      Training/                       <- AKSS_training_manual.pdf (keyword "training")
+    09. Support/
+      Incidents/                      <- AKSS_incident_001.docx (keyword "incident")
+      Tickets/                        <- AKSS_support_log.xlsx (keyword "support")
     AKSS_data.xyz                     <- no project or sub-category match
   Documents/                          <- non-client files sort normally
   Images/
@@ -365,7 +413,7 @@ fileSorter/
 ├── tray.py          # System tray icon with watcher, dashboard, and controls
 ├── notify.py        # Windows toast notifications
 ├── dashboard.py     # Flask web dashboard with Chart.js + settings
-├── test_sorter.py   # pytest test suite (74 tests)
+├── test_sorter.py   # pytest test suite (80 tests)
 ├── setup.ps1        # Windows Task Scheduler registration
 └── requirements.txt # Dependencies: watchdog, pytest, flask, winotify, pystray, Pillow
 ```
