@@ -118,7 +118,7 @@ Opens a dashboard at `http://localhost:5000` with:
   - Clients (add/remove clients and keywords)
   - Client sub-categories (keywords + extensions per sub-category)
   - Ignore list (glob patterns)
-  - Regex rules (pattern → folder)
+  - Regex rules (pattern → folder) with collapsible cheat sheet for beginners
   - Save All / Reset to Defaults buttons
   - Changes are stored in SQLite and applied at runtime — no restart needed
 

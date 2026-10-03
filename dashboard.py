@@ -748,6 +748,33 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
     display: block; font-size: 10px; color: var(--muted); margin-top: 2px;
     font-weight: 400;
 }
+.cheatsheet { display: none; margin-top: 12px; }
+.cheatsheet.open { display: block; }
+.cheatsheet-toggle {
+    background: none; border: none; color: var(--primary); cursor: pointer;
+    font-size: 12px; font-weight: 600; padding: 0; display: inline-flex;
+    align-items: center; gap: 4px;
+}
+.cheatsheet-toggle:hover { text-decoration: underline; }
+.cheatsheet-toggle .chev { font-size: 9px; transition: transform 0.2s; }
+.cheatsheet.open ~ .cheatsheet-toggle .chev,
+.cheatsheet-toggle.open .chev { transform: rotate(90deg); }
+.cs-table { margin-top: 8px; }
+.cs-table th { font-size: 11px; padding: 6px 10px; text-align: left; }
+.cs-table td { font-size: 12px; padding: 5px 10px; }
+.cs-table code {
+    background: #1e293b; padding: 2px 6px; border-radius: 4px;
+    font-size: 11px; color: #93c5fd;
+}
+.cs-table .cs-desc { color: var(--muted); font-size: 11px; }
+.cs-example {
+    margin-top: 10px; padding: 10px 14px; background: var(--bg);
+    border: 1px solid var(--border); border-radius: 8px; font-size: 12px;
+}
+.cs-example strong { font-size: 11px; color: var(--muted); display: block; margin-bottom: 6px; }
+.cs-example div { margin-bottom: 4px; }
+.cs-example code { background: #1e293b; padding: 2px 6px; border-radius: 4px; font-size: 11px; color: #93c5fd; }
+.cs-example .cs-arrow { color: var(--muted); margin: 0 4px; }
 </style>
 </head>
 <body>
@@ -854,39 +881,81 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
 <div class="chart-card step-match">
     <div class="section-header">
         <h3><span class="step-badge match">4</span>Clients</h3>
-        <button class="btn btn-sm btn-primary" onclick="addClient()">+ Add Client</button>
     </div>
     <div id="clientContainer"></div>
+    <div class="add-row" style="margin-top:10px">
+        <input type="text" id="newClientInput" placeholder="New client name (e.g. ACME)" onkeydown="if(event.key==='Enter')addClient()">
+        <button class="btn btn-sm btn-primary" onclick="addClient()">Add</button>
+    </div>
 </div>
 
 <!-- Step 4: Client Sub-categories -->
 <div class="chart-card step-match">
     <div class="section-header">
         <h3><span class="step-badge match">4</span>Client Sub-categories</h3>
-        <button class="btn btn-sm btn-primary" onclick="addSubcat()">+ Add Sub-category</button>
     </div>
     <div id="subcatContainer"></div>
+    <div class="add-row" style="margin-top:10px">
+        <input type="text" id="newSubcatInput" placeholder="New sub-category name (e.g. 04. Design)" onkeydown="if(event.key==='Enter')addSubcat()">
+        <button class="btn btn-sm btn-primary" onclick="addSubcat()">Add</button>
+    </div>
 </div>
 
 <!-- Step 5: Regex Rules -->
 <div class="chart-card step-match">
     <div class="section-header">
         <h3><span class="step-badge match">5</span>Regex Rules</h3>
-        <button class="btn btn-sm btn-primary" onclick="addRegex()">+ Add Rule</button>
     </div>
     <table id="regexTable">
         <thead><tr><th>Pattern</th><th>Folder</th><th style="width:40px"></th></tr></thead>
         <tbody id="regexBody"></tbody>
     </table>
+    <div class="add-row" style="margin-bottom:10px">
+        <input type="text" id="regexPatternInput" placeholder="Pattern (e.g. ^INV-\d+)" onkeydown="if(event.key==='Enter')document.getElementById('regexFolderInput').focus()">
+        <input type="text" id="regexFolderInput" placeholder="Folder (e.g. Invoices)" onkeydown="if(event.key==='Enter')addRegex()">
+        <button class="btn btn-sm btn-primary" onclick="addRegex()">Add</button>
+    </div>
+    <button class="cheatsheet-toggle" id="csToggle" onclick="document.getElementById('csSheet').classList.toggle('open');this.classList.toggle('open')">
+        <span class="chev">&#9654;</span> Regex Cheat Sheet
+    </button>
+    <div class="cheatsheet" id="csSheet">
+        <table class="cs-table" style="width:100%">
+            <thead><tr><th>Symbol</th><th>Meaning</th><th>Example</th></tr></thead>
+            <tbody>
+                <tr><td><code>abc</code></td><td>Matches the exact text "abc"</td><td class="cs-desc"><code>invoice</code> matches any filename containing "invoice"</td></tr>
+                <tr><td><code>^</code></td><td>Start of filename</td><td class="cs-desc"><code>^INV</code> matches files starting with "INV"</td></tr>
+                <tr><td><code>$</code></td><td>End of filename</td><td class="cs-desc"><code>report$</code> matches files ending with "report"</td></tr>
+                <tr><td><code>.</code></td><td>Any single character</td><td class="cs-desc"><code>file.txt</code> matches "file1txt", "fileAtxt", etc.</td></tr>
+                <tr><td><code>\.</code></td><td>A literal dot</td><td class="cs-desc"><code>file\.txt</code> matches exactly "file.txt"</td></tr>
+                <tr><td><code>\d</code></td><td>Any digit (0-9)</td><td class="cs-desc"><code>INV-\d\d\d</code> matches "INV-001", "INV-999"</td></tr>
+                <tr><td><code>\d+</code></td><td>One or more digits</td><td class="cs-desc"><code>INV-\d+</code> matches "INV-1", "INV-12345"</td></tr>
+                <tr><td><code>.*</code></td><td>Any characters (zero or more)</td><td class="cs-desc"><code>^report.*pdf</code> matches "report_2026.pdf"</td></tr>
+                <tr><td><code>[abc]</code></td><td>Any one of a, b, or c</td><td class="cs-desc"><code>[Ss]creenshot</code> matches "Screenshot" or "screenshot"</td></tr>
+                <tr><td><code>(?i)</code></td><td>Case-insensitive (put at start)</td><td class="cs-desc"><code>(?i)screenshot</code> matches "SCREENSHOT", "Screenshot"</td></tr>
+                <tr><td><code>a|b</code></td><td>Either "a" or "b"</td><td class="cs-desc"><code>invoice|receipt</code> matches either word</td></tr>
+            </tbody>
+        </table>
+        <div class="cs-example">
+            <strong>Common examples</strong>
+            <div><code>^INV-\d{4}-\d+</code> <span class="cs-arrow">&#8594;</span> Invoices <span class="cs-arrow">&mdash;</span> <span class="cs-desc">files like INV-2026-001.pdf</span></div>
+            <div><code>(?i)screenshot</code> <span class="cs-arrow">&#8594;</span> Screenshots <span class="cs-arrow">&mdash;</span> <span class="cs-desc">any file with "screenshot" in the name</span></div>
+            <div><code>^backup_.*\.zip</code> <span class="cs-arrow">&#8594;</span> Backups <span class="cs-arrow">&mdash;</span> <span class="cs-desc">files like backup_2026-10-03.zip</span></div>
+            <div><code>(?i)^(meeting|standup)_notes</code> <span class="cs-arrow">&#8594;</span> Meeting Notes <span class="cs-arrow">&mdash;</span> <span class="cs-desc">meeting_notes.docx, Standup_Notes.pdf</span></div>
+        </div>
+        <p style="font-size:11px;color:var(--muted);margin-top:8px">Tip: Use the Rule Tester above to try your pattern before saving.</p>
+    </div>
 </div>
 
 <!-- Step 6: File Categories -->
 <div class="chart-card step-fallback">
     <div class="section-header">
         <h3><span class="step-badge fallback">6</span>File Categories</h3>
-        <button class="btn btn-sm btn-primary" onclick="addCategory()">+ Add Category</button>
     </div>
     <div class="tree" id="catContainer"></div>
+    <div class="add-row" style="margin-top:10px">
+        <input type="text" id="newCatInput" placeholder="New category name (e.g. Spreadsheets)" onkeydown="if(event.key==='Enter')addCategory()">
+        <button class="btn btn-sm btn-primary" onclick="addCategory()">Add</button>
+    </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1071,10 +1140,12 @@ function addExt(input, catName) {
 }
 
 function addCategory() {
-    const name = prompt('Category name:');
+    const input = document.getElementById('newCatInput');
+    const name = input.value.trim();
     if (!name) return;
     S.categories[name] = [];
     renderCategories();
+    input.value = '';
 }
 
 function removeCategory(name) {
@@ -1091,10 +1162,12 @@ function addKeyword(input, clientName) {
 }
 
 function addClient() {
-    const name = prompt('Client name:');
+    const input = document.getElementById('newClientInput');
+    const name = input.value.trim();
     if (!name) return;
     S.clients[name] = [];
     renderClients();
+    input.value = '';
 }
 
 function removeClient(name) {
@@ -1122,10 +1195,12 @@ function addSubcatExt(input, subcatName) {
 }
 
 function addSubcat() {
-    const name = prompt('Sub-category name (e.g. 04. Design):');
+    const input = document.getElementById('newSubcatInput');
+    const name = input.value.trim();
     if (!name) return;
     S.client_subcategories[name] = { keywords: [], extensions: [] };
     renderSubcats();
+    input.value = '';
 }
 
 function removeSubcat(name) {
@@ -1142,12 +1217,16 @@ function addIgnore() {
 }
 
 function addRegex() {
-    const pattern = prompt('Regex pattern:');
-    if (!pattern) return;
-    const folder = prompt('Target folder:');
-    if (!folder) return;
+    const pi = document.getElementById('regexPatternInput');
+    const fi = document.getElementById('regexFolderInput');
+    const pattern = pi.value.trim();
+    const folder = fi.value.trim();
+    if (!pattern || !folder) return;
     S.regex_rules[pattern] = folder;
     renderRegex();
+    pi.value = '';
+    fi.value = '';
+    pi.focus();
 }
 
 function removeRegex(pattern) {
