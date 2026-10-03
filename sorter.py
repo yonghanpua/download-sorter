@@ -46,6 +46,15 @@ def get_client(path: Path) -> str | None:
     return None
 
 
+def get_client_project(path: Path, client: str) -> str | None:
+    project_map = config.CLIENT_PROJECT_MAP.get(client, {})
+    name_lower = path.stem.lower()
+    for keyword, project in project_map.items():
+        if keyword in name_lower:
+            return project
+    return None
+
+
 def get_client_subcategory(path: Path) -> str | None:
     name_lower = path.stem.lower()
     for keyword, subcategory in config.CLIENT_KEYWORD_MAP.items():
@@ -88,11 +97,15 @@ def sort_file(path: Path, base: Path = None, rules: dict = None) -> Path | None:
     else:
         client = None
     if client:
+        project = get_client_project(path, client)
         subcategory = get_client_subcategory(path)
+        client_dir = base / client
+        if project:
+            client_dir = client_dir / project
         if subcategory:
-            dest_dir = base / client / subcategory
+            dest_dir = client_dir / subcategory
         else:
-            dest_dir = base / client
+            dest_dir = client_dir
         category = client
     else:
         if rules.get("regex_rules", True):

@@ -245,6 +245,7 @@ def api_get_settings():
         "debounce_seconds": config.DEBOUNCE_SECONDS,
         "categories": {k: sorted(v) for k, v in config.CATEGORIES.items()},
         "clients": config.CLIENTS,
+        "client_projects": config.CLIENT_PROJECTS,
         "client_subcategories": {
             k: {
                 "keywords": v["keywords"],
@@ -263,9 +264,10 @@ def api_get_settings():
 @app.route("/api/settings", methods=["POST"])
 def api_save_settings():
     data = request.json
-    for key in ("categories", "clients", "client_subcategories",
-                "ignore_list", "regex_rules", "downloads_folder",
-                "debounce_seconds", "notifications_enabled", "watched_folders"):
+    for key in ("categories", "clients", "client_projects",
+                "client_subcategories", "ignore_list", "regex_rules",
+                "downloads_folder", "debounce_seconds",
+                "notifications_enabled", "watched_folders"):
         if key in data:
             db.save_setting(key, data[key])
     config.load_overrides()
@@ -278,9 +280,10 @@ def api_reset_settings():
     if key:
         db.delete_setting(key)
     else:
-        for k in ("categories", "clients", "client_subcategories",
-                   "ignore_list", "regex_rules", "downloads_folder",
-                   "debounce_seconds", "notifications_enabled", "watched_folders"):
+        for k in ("categories", "clients", "client_projects",
+                   "client_subcategories", "ignore_list", "regex_rules",
+                   "downloads_folder", "debounce_seconds",
+                   "notifications_enabled", "watched_folders"):
             db.delete_setting(k)
     config.load_overrides()
     return jsonify({"ok": True})
@@ -322,9 +325,17 @@ def api_test_sort():
 
     client = get_client(path)
     if client:
+        project = None
+        project_reason = ""
         subcat = None
         subcat_reason = ""
         name_lower = path.stem.lower()
+        proj_map = config.CLIENT_PROJECT_MAP.get(client, {})
+        for kw, proj in proj_map.items():
+            if kw in name_lower:
+                project = proj
+                project_reason = f"keyword '{kw}'"
+                break
         for keyword, sc in config.CLIENT_KEYWORD_MAP.items():
             if keyword in name_lower:
                 subcat = sc
@@ -334,12 +345,19 @@ def api_test_sort():
             subcat = config.CLIENT_EXTENSION_MAP.get(path.suffix.lower())
             if subcat:
                 subcat_reason = f"extension '{path.suffix}'"
-        dest = f"{client}\\{subcat}" if subcat else client
+        parts = [client]
+        if project:
+            parts.append(project)
+        if subcat:
+            parts.append(subcat)
+        dest = "\\".join(parts)
         detail = f"Client '{client}'"
+        if project:
+            detail += f" → project '{project}' (matched by {project_reason})"
         if subcat:
             detail += f" → {subcat} (matched by {subcat_reason})"
-        else:
-            detail += " → client root (no sub-category match)"
+        elif not project:
+            detail += " → client root (no project or sub-category match)"
         steps.append({"step": 4, "name": "Client Match", "matched": True,
                        "detail": detail})
         result["outcome"] = "sort"
@@ -1112,6 +1130,20 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
     </div>
 </div>
 
+<!-- Step 4: Client Projects -->
+<div class="chart-card step-match">
+    <div class="section-header">
+        <h3><span class="step-badge match">4</span>Client Projects</h3>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin:0 0 10px">Optional — files matching a project keyword are sorted into a project subfolder within the client folder.</p>
+    <div id="projectContainer"></div>
+    <div class="add-row" style="margin-top:10px">
+        <select id="newProjectClient" style="max-width:180px"></select>
+        <input type="text" id="newProjectInput" placeholder="Project name (e.g. Project Alpha)" onkeydown="if(event.key==='Enter')addProject()">
+        <button class="btn btn-sm btn-primary" onclick="addProject()">Add</button>
+    </div>
+</div>
+
 <!-- Step 4: Client Sub-categories -->
 <div class="chart-card step-match">
     <div class="section-header">
@@ -1300,6 +1332,47 @@ function renderClients() {
     }
 }
 
+function renderProjects() {
+    const c = document.getElementById('projectContainer');
+    c.innerHTML = '';
+    const sel = document.getElementById('newProjectClient');
+    sel.innerHTML = '<option value="">Select client…</option>';
+    Object.keys(S.clients).forEach(cl => {
+        sel.innerHTML += '<option value="' + escapeHtml(cl) + '">' + escapeHtml(cl) + '</option>';
+    });
+    if (!S.client_projects) S.client_projects = {};
+    for (const [client, projects] of Object.entries(S.client_projects)) {
+        const groupNode = document.createElement('div');
+        groupNode.className = 'tree-node tree-group';
+        const projNames = Object.keys(projects);
+        const totalKw = projNames.reduce((s, p) => s + (projects[p]||[]).length, 0);
+        let badge = projNames.length + ' project' + (projNames.length !== 1 ? 's' : '') + ', ' + totalKw + ' kw';
+        let html = '<div class="tree-row" onclick="toggleTreeNode(this)">'
+            + '<span class="tree-chevron">&#9654;</span>'
+            + '<span class="tree-name" style="font-weight:700">' + escapeHtml(client) + '</span>'
+            + '<span class="tree-count">' + badge + '</span>'
+            + '</div><div class="tree-body" style="padding-left:0">';
+        projNames.forEach(proj => {
+            const eClient = escapeHtml(client);
+            const eProj = escapeHtml(proj);
+            html += '<div class="cat-card" data-client="' + eClient + '" data-project="' + eProj + '">'
+                + '<div class="cat-header"><strong>' + eProj + '</strong>'
+                + '<button class="btn btn-sm btn-danger" onclick="removeProject(\'' + eClient + '\',\'' + eProj + '\')">&times;</button></div>'
+                + '<div class="tag-list" data-role="proj-kw"></div>'
+                + '<div class="add-row"><input type="text" placeholder="keyword" onkeydown="if(event.key===\'Enter\')addProjectKw(this,\'' + eClient + '\',\'' + eProj + '\')"><button class="btn btn-sm btn-primary" onclick="addProjectKw(this.previousElementSibling,\'' + eClient + '\',\'' + eProj + '\')">Add</button></div>'
+                + '</div>';
+        });
+        html += '</div>';
+        groupNode.innerHTML = html;
+        c.appendChild(groupNode);
+        groupNode.querySelectorAll('.cat-card').forEach(card => {
+            const proj = card.dataset.project;
+            const kwList = card.querySelector('[data-role="proj-kw"]');
+            (projects[proj] || []).forEach(kw => kwList.appendChild(makeTag(kw)));
+        });
+    }
+}
+
 function subcatCatOptions(eFull) {
     let opts = '';
     Object.keys(S.categories).forEach(cat => {
@@ -1404,6 +1477,7 @@ function renderAll() {
     renderWatchedFolders();
     renderCategories();
     renderClients();
+    renderProjects();
     renderSubcats();
     renderIgnoreList();
     renderRegex();
@@ -1431,6 +1505,15 @@ function collectState() {
         const name = card.dataset.name;
         const kws = Array.from(card.querySelectorAll('.tag-list .tag')).map(t => t.textContent.replace('×', '').trim());
         data.clients[name] = kws;
+    });
+
+    data.client_projects = {};
+    document.querySelectorAll('#projectContainer .cat-card[data-client][data-project]').forEach(card => {
+        const cl = card.dataset.client;
+        const proj = card.dataset.project;
+        const kws = Array.from(card.querySelectorAll('[data-role="proj-kw"] .tag')).map(t => t.textContent.replace('×', '').trim());
+        if (!data.client_projects[cl]) data.client_projects[cl] = {};
+        data.client_projects[cl][proj] = kws;
     });
 
     data.client_subcategories = {};
@@ -1503,6 +1586,38 @@ function addClient() {
 function removeClient(name) {
     delete S.clients[name];
     renderClients();
+    renderProjects();
+}
+
+function addProject() {
+    const sel = document.getElementById('newProjectClient');
+    const input = document.getElementById('newProjectInput');
+    const client = sel.value;
+    const name = input.value.trim();
+    if (!client || !name) return;
+    if (!S.client_projects) S.client_projects = {};
+    if (!S.client_projects[client]) S.client_projects[client] = {};
+    if (S.client_projects[client][name]) return;
+    S.client_projects[client][name] = [];
+    renderProjects();
+    input.value = '';
+}
+
+function removeProject(client, project) {
+    if (S.client_projects && S.client_projects[client]) {
+        delete S.client_projects[client][project];
+        if (Object.keys(S.client_projects[client]).length === 0) delete S.client_projects[client];
+    }
+    renderProjects();
+}
+
+function addProjectKw(input, client, project) {
+    const v = input.value.trim();
+    if (!v) return;
+    const card = input.closest('.cat-card');
+    const tagList = card.querySelector('[data-role="proj-kw"]');
+    tagList.appendChild(makeTag(v));
+    input.value = '';
 }
 
 function addSubcatKw(input, subcatName) {

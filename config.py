@@ -91,6 +91,8 @@ CLIENTS: dict[str, list[str]] = {
     "AKSS": ["AKSS", "AKS24"],
 }
 
+CLIENT_PROJECTS: dict[str, dict[str, list[str]]] = {}
+
 CLIENT_SUBCATEGORIES: dict[str, dict] = {
     "01. Commercial/Proposals": {
         "keywords": ["proposal", "quote", "tender", "bid", "rfq"],
@@ -141,10 +143,11 @@ CLIENT_SUBCATEGORIES: dict[str, dict] = {
 EXTENSION_MAP: dict[str, str] = {}
 CLIENT_KEYWORD_MAP: dict[str, str] = {}
 CLIENT_EXTENSION_MAP: dict[str, str] = {}
+CLIENT_PROJECT_MAP: dict[str, dict[str, str]] = {}
 
 
 def _rebuild_maps():
-    global EXTENSION_MAP, CLIENT_KEYWORD_MAP, CLIENT_EXTENSION_MAP
+    global EXTENSION_MAP, CLIENT_KEYWORD_MAP, CLIENT_EXTENSION_MAP, CLIENT_PROJECT_MAP
     EXTENSION_MAP = {}
     for cat, exts in CATEGORIES.items():
         for ext in exts:
@@ -161,6 +164,13 @@ def _rebuild_maps():
                 exts |= CATEGORIES[cat_ref]
         for ext in exts:
             CLIENT_EXTENSION_MAP[ext] = subcat
+    CLIENT_PROJECT_MAP = {}
+    for client, projects in CLIENT_PROJECTS.items():
+        kw_map = {}
+        for proj_name, keywords in projects.items():
+            for kw in keywords:
+                kw_map[kw.lower()] = proj_name
+        CLIENT_PROJECT_MAP[client] = kw_map
 
 
 _rebuild_maps()
@@ -173,6 +183,7 @@ _DEFAULTS = {
     "watched_folders": copy.deepcopy(WATCHED_FOLDERS),
     "categories": {k: sorted(v) for k, v in CATEGORIES.items()},
     "clients": copy.deepcopy(CLIENTS),
+    "client_projects": copy.deepcopy(CLIENT_PROJECTS),
     "client_subcategories": {
         k: {
             "keywords": list(v["keywords"]),
@@ -189,7 +200,7 @@ _DEFAULTS = {
 def load_overrides():
     """Reset to code defaults, then apply any DB overrides."""
     global DOWNLOADS_FOLDER, DEBOUNCE_SECONDS, NOTIFICATIONS_ENABLED
-    global CATEGORIES, CLIENTS, CLIENT_SUBCATEGORIES
+    global CATEGORIES, CLIENTS, CLIENT_PROJECTS, CLIENT_SUBCATEGORIES
     global IGNORE_LIST, REGEX_RULES, WATCHED_FOLDERS
 
     DOWNLOADS_FOLDER = Path(_DEFAULTS["downloads_folder"])
@@ -197,6 +208,7 @@ def load_overrides():
     NOTIFICATIONS_ENABLED = _DEFAULTS["notifications_enabled"]
     CATEGORIES = {k: set(v) for k, v in _DEFAULTS["categories"].items()}
     CLIENTS = copy.deepcopy(_DEFAULTS["clients"])
+    CLIENT_PROJECTS = copy.deepcopy(_DEFAULTS["client_projects"])
     CLIENT_SUBCATEGORIES = {
         k: {
             "keywords": list(v["keywords"]),
@@ -226,6 +238,8 @@ def load_overrides():
         CATEGORIES = {k: set(v) for k, v in overrides["categories"].items()}
     if "clients" in overrides:
         CLIENTS = overrides["clients"]
+    if "client_projects" in overrides:
+        CLIENT_PROJECTS = overrides["client_projects"]
     if "client_subcategories" in overrides:
         CLIENT_SUBCATEGORIES = {
             k: {

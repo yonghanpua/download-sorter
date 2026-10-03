@@ -9,7 +9,7 @@ A Python utility that automatically organizes your Downloads folder by sorting f
 - **Batch sweep** — one-command cleanup of all existing files
 - **Smart download handling** — ignores incomplete downloads (`.crdownload`, `.part`, `.tmp`) until finished
 - **Duplicate safety** — auto-renames with `(1)`, `(2)`, etc. instead of overwriting
-- **Client sorting** — route files to client folders with sub-categories based on filename keywords
+- **Client sorting** — route files to client folders with optional project-level organization and sub-categories based on filename keywords
 - **Regex rules** — optional pattern-to-folder mapping for custom naming conventions
 - **Ignore list** — skip specific files or glob patterns from being sorted
 - **Undo** — reverse the last move, last N moves, cherry-pick specific files, or batch undo by time range
@@ -123,6 +123,7 @@ Opens a dashboard at `http://localhost:5000` with:
   - Sections ordered and color-coded to match sorting priority (red=skip, green=match, blue=fallback)
   - Collapsible tree view for file categories with extension counts
   - Clients (add/remove clients and keywords)
+  - Client projects with keyword-based project detection per client
   - Client sub-categories with nested tree view (keywords, extensions, and linked file categories per sub-category)
   - Ignore list (glob patterns)
   - Regex rules (pattern → folder) with collapsible cheat sheet for beginners
@@ -199,6 +200,25 @@ CLIENTS = {
 }
 ```
 
+#### Client Projects (optional)
+
+Files can be further organized into project subfolders within each client. Projects are matched by keyword in the filename — if a project keyword matches, the file goes into `Client / Project / Sub-category` instead of `Client / Sub-category`.
+
+```python
+CLIENT_PROJECTS = {
+    "AKSS": {
+        "Project Alpha": ["alpha", "prj-a"],
+        "Project Beta": ["beta"],
+    },
+}
+```
+
+Example: `AKSS_alpha_proposal.pptx` → `AKSS/Project Alpha/01. Commercial/Proposals/`
+
+If no project keyword matches, the file is sorted directly into the client's sub-category folder (same as before). Projects are fully optional — leave `CLIENT_PROJECTS` empty to disable.
+
+#### Client Sub-categories
+
 Sub-categories support nested paths using `/` (same as file categories). They are matched by **keyword first, then file extension** as fallback:
 
 ```python
@@ -239,20 +259,26 @@ Keyword match wins over extension. For example, `AKSS_dev_report.pdf` goes to `0
 ```
 Downloads/
   AKSS/
+    Project Alpha/                    <- project keyword "alpha" matched
+      01. Commercial/
+        Proposals/                    <- AKSS_alpha_proposal.pptx
+      04. Development/
+        Source/                       <- AKSS_alpha_dev_notes.py
+      AKSS_alpha_data.xyz             <- project match, no sub-category
     01. Commercial/
-      Proposals/          <- AKSS_proposal.txt (keyword "proposal")
-      Contracts/          <- AKSS_summary.pdf (extension .pdf)
-      Change Orders/      <- AKSS_changeorder_001.docx (keyword "changeorder")
-      Invoices/           <- AKSS_data.xlsx (extension .xlsx)
+      Proposals/                      <- AKSS_proposal.txt (keyword "proposal")
+      Contracts/                      <- AKSS_summary.pdf (extension .pdf)
+      Change Orders/                  <- AKSS_changeorder_001.docx
+      Invoices/                       <- AKSS_data.xlsx (extension .xlsx)
     02. Correspondence/
-      Meeting Minutes/    <- AKSS_meeting_notes.docx (keyword "meeting")
-      Transmittals/       <- AKSS_letter_001.doc (extension .doc)
+      Meeting Minutes/                <- AKSS_meeting_notes.docx (keyword "meeting")
+      Transmittals/                   <- AKSS_letter_001.doc (extension .doc)
     03. Documentation/
-      Manuals/            <- AKSS_manual.pdf (keyword "manual")
+      Manuals/                        <- AKSS_manual.pdf (keyword "manual")
     04. Development/
-      Source/             <- AKSS_dev_report.pdf (keyword "dev")
-    AKSS_data.xyz         <- no keyword or extension match -> client root
-  Documents/              <- non-client files sort normally
+      Source/                         <- AKSS_dev_report.pdf (keyword "dev")
+    AKSS_data.xyz                     <- no project or sub-category match
+  Documents/                          <- non-client files sort normally
   Images/
 ```
 
@@ -302,7 +328,7 @@ Files are evaluated in this order — first match wins:
 1. **Temp file** (`.crdownload`, `.part`, etc.) — skip
 2. **Dotfile** (`.hidden`) — skip
 3. **Ignore list** match — skip
-4. **Client keyword** match — client folder with sub-category
+4. **Client keyword** match — client folder with optional project + sub-category
 5. **Regex rule** match — custom folder
 6. **Extension category** match — category folder
 7. **Unknown extension** — leave in place
@@ -319,7 +345,7 @@ fileSorter/
 ├── tray.py          # System tray icon with watcher, dashboard, and controls
 ├── notify.py        # Windows toast notifications
 ├── dashboard.py     # Flask web dashboard with Chart.js + settings
-├── test_sorter.py   # pytest test suite (67 tests)
+├── test_sorter.py   # pytest test suite (74 tests)
 ├── setup.ps1        # Windows Task Scheduler registration
 └── requirements.txt # Dependencies: watchdog, pytest, flask, winotify, pystray, Pillow
 ```

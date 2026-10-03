@@ -6,6 +6,7 @@ import sorter
 from sorter import (
     get_category,
     get_client,
+    get_client_project,
     get_client_subcategory,
     get_regex_category,
     is_ignored,
@@ -200,6 +201,32 @@ class TestGetClientSubcategory:
         assert get_client_subcategory(tmp_path / "AKSS_data.xyz") is None
 
 
+# --- get_client_project ---
+
+class TestGetClientProject:
+    def test_matches_keyword(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(config, "CLIENT_PROJECT_MAP", {
+            "AKSS": {"alpha": "Project Alpha"}
+        })
+        assert get_client_project(tmp_path / "AKSS_alpha_report.pdf", "AKSS") == "Project Alpha"
+
+    def test_no_match(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(config, "CLIENT_PROJECT_MAP", {
+            "AKSS": {"alpha": "Project Alpha"}
+        })
+        assert get_client_project(tmp_path / "AKSS_report.pdf", "AKSS") is None
+
+    def test_no_projects_for_client(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(config, "CLIENT_PROJECT_MAP", {})
+        assert get_client_project(tmp_path / "AKSS_alpha.pdf", "AKSS") is None
+
+    def test_case_insensitive(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(config, "CLIENT_PROJECT_MAP", {
+            "AKSS": {"alpha": "Project Alpha"}
+        })
+        assert get_client_project(tmp_path / "AKSS_ALPHA_report.pdf", "AKSS") == "Project Alpha"
+
+
 # --- resolve_duplicate ---
 
 class TestResolveDuplicate:
@@ -285,6 +312,36 @@ class TestSortFile:
         f.write_text("test")
         sort_file(f, tmp_path)
         assert (tmp_path / "AKSS" / "01. Commercial" / "Proposals").is_dir()
+
+    def test_client_with_project_and_subcategory(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(config, "CLIENT_PROJECT_MAP", {
+            "AKSS": {"alpha": "Project Alpha"}
+        })
+        f = tmp_path / "AKSS_alpha_proposal.pptx"
+        f.write_text("test")
+        result = sort_file(f, tmp_path)
+        assert result == tmp_path / "AKSS" / "Project Alpha" / "01. Commercial" / "Proposals" / "AKSS_alpha_proposal.pptx"
+        assert result.exists()
+
+    def test_client_with_project_no_subcategory(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(config, "CLIENT_PROJECT_MAP", {
+            "AKSS": {"alpha": "Project Alpha"}
+        })
+        f = tmp_path / "AKSS_alpha_data.xyz"
+        f.write_text("test")
+        result = sort_file(f, tmp_path)
+        assert result == tmp_path / "AKSS" / "Project Alpha" / "AKSS_alpha_data.xyz"
+        assert result.exists()
+
+    def test_client_no_project_still_works(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(config, "CLIENT_PROJECT_MAP", {
+            "AKSS": {"alpha": "Project Alpha"}
+        })
+        f = tmp_path / "AKSS_report.pdf"
+        f.write_text("test")
+        result = sort_file(f, tmp_path)
+        assert result == tmp_path / "AKSS" / "01. Commercial" / "Contracts" / "AKSS_report.pdf"
+        assert result.exists()
 
     def test_records_to_database(self, tmp_path):
         f = tmp_path / "report.pdf"
