@@ -341,10 +341,18 @@ def api_test_sort():
                 subcat = sc
                 subcat_reason = f"keyword '{keyword}'"
                 break
+        linked_cat = None
         if not subcat:
-            subcat = config.CLIENT_EXTENSION_MAP.get(path.suffix.lower())
+            ext_lower = path.suffix.lower()
+            subcat = config.CLIENT_EXTENSION_MAP.get(ext_lower)
             if subcat:
                 subcat_reason = f"extension '{path.suffix}'"
+                rules = config.CLIENT_SUBCATEGORIES.get(subcat, {})
+                if ext_lower not in rules.get("extensions", set()):
+                    for cat_ref in rules.get("categories", []):
+                        if cat_ref in config.CATEGORIES and ext_lower in config.CATEGORIES[cat_ref]:
+                            linked_cat = cat_ref
+                            break
         parts = [client]
         if project:
             parts.append(project)
@@ -360,6 +368,10 @@ def api_test_sort():
             detail += " → client root (no project or sub-category match)"
         steps.append({"step": 4, "name": "Client Match", "matched": True,
                        "detail": detail})
+        if linked_cat:
+            steps.append({"step": 6, "name": "Extension", "matched": False,
+                           "linked": True,
+                           "detail": f"Linked via '{linked_cat}'"})
         result["outcome"] = "sort"
         result["reason"] = f"Client match — sorted to {dest}"
         result["destination"] = dest
@@ -949,6 +961,9 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
 .test-step.hit-sort .ts-num { background: #14532d; color: #86efac; }
 .test-step.hit-sort .ts-label { color: #86efac; }
 .test-step.hit-sort { background: rgba(22,163,74,0.08); }
+.test-step.hit-linked .ts-num { background: transparent; color: #86efac; border: 1.5px dashed #86efac; }
+.test-step.hit-linked .ts-label { color: #86efac; opacity: 0.7; }
+.test-step.hit-linked { background: rgba(22,163,74,0.04); border-top: 1px dashed rgba(22,163,74,0.3); }
 .test-step.hit-skip .ts-num { background: #7f1d1d; color: #fca5a5; }
 .test-step.hit-skip .ts-label { color: #fca5a5; }
 .test-step.hit-skip { background: rgba(220,38,38,0.08); }
@@ -1840,7 +1855,9 @@ async function testSort() {
     for (const s of allSteps) {
         const found = d.steps.find(x => x.step === s.step);
         let cls = '';
-        if (found && found.matched) {
+        if (found && found.linked) {
+            cls = 'hit-linked';
+        } else if (found && found.matched) {
             cls = d.outcome === 'sort' ? 'hit-sort' : 'hit-skip';
         } else if (found) {
             cls = 'pass';

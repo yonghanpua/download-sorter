@@ -117,7 +117,7 @@ Opens a dashboard at `http://localhost:5000` with:
 - File existence status indicator (exists/missing)
 - Auto-refreshes every 10 seconds
 - **Settings page** (`/settings`) — edit all config from the browser:
-  - Rule tester — type any filename to see which rule matches and where it would be sorted
+  - Rule tester — type any filename to see which rule matches and where it would be sorted, with linked category highlights showing when a client sub-category match came through a linked file category
   - Sorting priority pipeline — visual diagram showing the 7-step evaluation order
   - General settings (downloads folder, debounce delay)
   - Sections ordered and color-coded to match sorting priority (red=skip, green=match, blue=fallback)
