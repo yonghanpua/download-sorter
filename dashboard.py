@@ -1105,6 +1105,34 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
     .action-bar-right { width: 100%; margin-left: 0; }
     .action-bar-right .btn { width: 100%; }
 }
+
+.btn-help {
+    width: 28px; height: 28px; border-radius: 50%; padding: 0;
+    background: var(--card); border: 1px solid var(--border); color: var(--muted);
+    font-size: 14px; font-weight: 700; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: border-color 0.2s, color 0.2s;
+}
+.btn-help:hover { border-color: var(--primary); color: var(--primary); }
+.help-section { margin-bottom: 16px; }
+.help-section h4 {
+    font-size: 13px; color: var(--text); margin-bottom: 6px;
+    display: flex; align-items: center; gap: 6px;
+}
+.help-section h4 .help-icon { font-size: 14px; }
+.help-section p, .help-section li {
+    font-size: 12px; color: var(--muted); line-height: 1.6;
+}
+.help-section ul { margin: 4px 0 0 18px; }
+.help-section code {
+    background: #1e293b; padding: 2px 6px; border-radius: 4px;
+    font-size: 11px; color: #93c5fd;
+}
+.help-section .help-cmd {
+    display: block; margin: 6px 0; padding: 8px 12px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+    font-family: monospace; font-size: 11px; color: var(--text);
+}
 </style>
 </head>
 <body>
@@ -1114,6 +1142,7 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
         <h1>Settings</h1>
         <span class="subtitle"><a href="/">Back to Dashboard</a></span>
     </div>
+    <button class="btn-help" onclick="openModal('helpModal')" title="Getting Started" aria-label="Help">?</button>
 </div>
 
 <!-- Sorting Pipeline -->
@@ -1392,6 +1421,55 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
         <div class="modal-actions">
             <button class="btn btn-secondary" id="importCancelBtn" onclick="closeModal('importModal')">Cancel</button>
             <button class="btn btn-primary" onclick="confirmImport()">Apply imported settings</button>
+        </div>
+    </div>
+</div>
+
+<!-- Help modal -->
+<div class="modal-overlay" id="helpModal" role="dialog" aria-modal="true" aria-label="Getting started guide">
+    <div class="modal" style="max-width:560px">
+        <h3>Getting Started</h3>
+
+        <div class="help-section">
+            <h4><span class="help-icon">&#9881;</span> System Tray (recommended)</h4>
+            <p>The easiest way to run fileSorter. It starts the file watcher, web dashboard, and scheduled sweeps all in one:</p>
+            <code class="help-cmd">python main.py tray</code>
+            <ul>
+                <li>Green icon = watcher is active, grey = paused</li>
+                <li>Right-click the tray icon for Pause/Resume, Sweep Now, Open Dashboard, or Quit</li>
+                <li>The dashboard runs at <strong>localhost:5000</strong></li>
+            </ul>
+        </div>
+
+        <div class="help-section">
+            <h4><span class="help-icon">&#9654;</span> Other ways to run</h4>
+            <ul>
+                <li><code>python main.py watch</code> &mdash; real-time watcher only (no tray, no dashboard)</li>
+                <li><code>python main.py sweep</code> &mdash; one-time batch sort of all files</li>
+                <li><code>python main.py undo</code> &mdash; reverse the last file move</li>
+            </ul>
+        </div>
+
+        <div class="help-section">
+            <h4><span class="help-icon">&#128197;</span> Run on startup</h4>
+            <p>Register Windows Task Scheduler tasks so fileSorter starts on login and sweeps daily:</p>
+            <code class="help-cmd">powershell -ExecutionPolicy Bypass -File setup.ps1</code>
+        </div>
+
+        <div class="help-section">
+            <h4><span class="help-icon">&#9997;</span> This settings page</h4>
+            <ul>
+                <li>Sections are ordered by sorting priority &mdash; first match wins</li>
+                <li>Use the <strong>Rule Tester</strong> above to test any filename before saving</li>
+                <li>Changes are tracked &mdash; the <strong>Unsaved changes</strong> indicator appears when you edit something</li>
+                <li>Click <strong>Save Settings</strong> to apply &mdash; changes take effect immediately, no restart needed</li>
+                <li><strong>Export/Import JSON</strong> to back up or share your configuration</li>
+                <li><strong>Reset to Defaults</strong> restores all settings to the code defaults</li>
+            </ul>
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn btn-secondary" id="helpCancelBtn" onclick="closeModal('helpModal')">Close</button>
         </div>
     </div>
 </div>
