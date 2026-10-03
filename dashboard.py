@@ -1052,7 +1052,7 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
     background: var(--bg); border-top: 1px solid var(--border);
 }
 .action-bar-left { display: flex; align-items: center; gap: 10px; }
-.action-bar-right { margin-left: auto; }
+.action-bar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
 .action-bar .unsaved-badge {
     font-size: 11px; font-weight: 600; color: var(--warning);
     display: none; align-items: center; gap: 4px;
@@ -1099,11 +1099,11 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
         flex-wrap: wrap; gap: 8px;
     }
     .action-bar-left { width: 100%; }
-    .action-bar-left .btn { flex: 1; }
     .btn-group { flex: 1; }
     .btn-group .btn { flex: 1; }
-    .action-bar-right { width: 100%; margin-left: 0; }
-    .action-bar-right .btn { width: 100%; }
+    .action-bar-right { width: 100%; margin-left: 0; flex-wrap: wrap; }
+    .action-bar-right .unsaved-badge { width: 100%; justify-content: center; }
+    .action-bar-right .btn { flex: 1; }
 }
 
 .btn-help {
@@ -1377,15 +1377,15 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
 
 <div class="action-bar">
     <div class="action-bar-left">
-        <button class="btn btn-primary" id="btnSave" onclick="saveAll()" disabled>Save Settings</button>
-        <span class="unsaved-badge" id="unsavedBadge">&#9679; Unsaved changes</span>
+        <div class="btn-group">
+            <button class="btn btn-secondary" onclick="exportSettings()">Export JSON</button>
+            <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">Import JSON</button>
+        </div>
+        <input type="file" id="importFile" accept=".json" style="display:none" onchange="handleImportFile(this)">
     </div>
-    <div class="btn-group">
-        <button class="btn btn-secondary" onclick="exportSettings()">Export JSON</button>
-        <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">Import JSON</button>
-    </div>
-    <input type="file" id="importFile" accept=".json" style="display:none" onchange="handleImportFile(this)">
     <div class="action-bar-right">
+        <span class="unsaved-badge" id="unsavedBadge">&#9679; Unsaved changes</span>
+        <button class="btn btn-primary" id="btnSave" onclick="saveAll()" disabled>Save Settings</button>
         <button class="btn btn-danger-outline" onclick="openResetModal()">Reset to Defaults</button>
     </div>
 </div>

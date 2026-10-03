@@ -128,8 +128,9 @@ Opens a dashboard at `http://localhost:5000` with:
   - Client sub-categories with nested tree view (keywords, extensions, and linked file categories per sub-category)
   - Ignore list (glob patterns)
   - Regex rules (pattern → folder) with inline test input per rule and collapsible cheat sheet
+  - Help button (?) with getting started guide covering tray mode, CLI commands, startup setup, and settings usage
   - Export/import settings as JSON with confirmation summary before applying
-  - Sticky action bar with Save, Export/Import button group, and Reset to Defaults
+  - Sticky action bar with Export/Import on the left, unsaved-changes badge + Save + Reset to Defaults on the right
   - Dirty-state tracking with unsaved-changes indicator and page-leave warning
   - Reset confirmation modal listing what will be erased, with backup-first option
   - Watched folders management — add/remove folders, toggle per-folder sorting rules
