@@ -161,7 +161,8 @@ def settings_page():
 @app.route("/api/stats")
 def api_stats():
     date_filter = request.args.get("date") or None
-    data = db.get_stats(date_filter)
+    category_filter = request.args.get("category") or None
+    data = db.get_stats(date_filter, category_filter)
     data["watching"] = _is_task_running()
     return jsonify(data)
 
@@ -169,9 +170,10 @@ def api_stats():
 @app.route("/api/history")
 def api_history():
     date_filter = request.args.get("date") or None
+    category_filter = request.args.get("category") or None
     page = int(request.args.get("page", 1))
     per_page = int(request.args.get("per_page", 50))
-    result = db.get_history(date_filter, page, per_page)
+    result = db.get_history(date_filter, page, per_page, category_filter)
     for item in result["items"]:
         dest = Path(item["dest"])
         item["file"] = Path(item["src"]).name
@@ -444,9 +446,14 @@ input[type="checkbox"] { cursor: pointer; accent-color: var(--primary); }
     <div class="chart-card">
         <div class="section-header">
             <h3>Files by Category</h3>
-            <select id="dateFilter" class="date-picker" onchange="onDateChange()">
-                <option value="">All dates</option>
-            </select>
+            <div style="display:flex;gap:8px;align-items:center">
+                <select id="categoryFilter" class="date-picker" onchange="onCategoryChange()">
+                    <option value="">All categories</option>
+                </select>
+                <select id="dateFilter" class="date-picker" onchange="onDateChange()">
+                    <option value="">All dates</option>
+                </select>
+            </div>
         </div>
         <canvas id="catChart"></canvas>
     </div>
@@ -479,9 +486,15 @@ input[type="checkbox"] { cursor: pointer; accent-color: var(--primary); }
 
 <script>
 const COLORS = ['#2563eb','#16a34a','#ea580c','#8b5cf6','#ec4899','#0891b2','#d97706','#dc2626','#059669','#6366f1'];
+const categoryColorMap = {};
+function getCategoryColors(labels) {
+    labels.forEach(l => { if (!(l in categoryColorMap)) categoryColorMap[l] = COLORS[Object.keys(categoryColorMap).length % COLORS.length]; });
+    return labels.map(l => categoryColorMap[l]);
+}
 let catChart = null, hourChart = null, dailyChart = null;
 let watching = false;
 let currentDate = '';
+let currentCategory = '';
 let historyItems = [];
 let currentPage = 1;
 let totalPages = 1;
@@ -521,6 +534,7 @@ function updateWatcherBtn() {
 function truncate(s,n){return s.length>n?s.slice(0,n)+'...':s;}
 function escapeHtml(s){const el=document.createElement('div');el.textContent=s;return el.innerHTML;}
 function onDateChange(){currentDate=document.getElementById('dateFilter').value;currentPage=1;refresh();}
+function onCategoryChange(){currentCategory=document.getElementById('categoryFilter').value;currentPage=1;refresh();}
 function getCheckedIds(){return Array.from(document.querySelectorAll('.row-cb:checked')).map(cb=>parseInt(cb.dataset.id));}
 function updateUndoBar(){
     const n=getCheckedIds().length;
@@ -548,9 +562,13 @@ function initCharts(){
     dailyChart=new Chart(document.getElementById('dailyChart'),{type:'line',data:{labels:[],datasets:[{data:[],borderColor:'#2563eb',backgroundColor:'#2563eb22',fill:true,tension:0.3,pointRadius:4}]},options:{...o,responsive:true,plugins:{legend:{display:false}},scales:{x:{grid:{display:false}},y:{beginAtZero:true}}}});
 }
 async function refresh(){
-    const q=currentDate?'?date='+currentDate:'';
-    const hq=q?q+'&':'?';
-    const [sr,hr]=await Promise.all([fetch('/api/stats'+q),fetch('/api/history'+hq+'page='+currentPage+'&per_page='+perPage)]);
+    const params=new URLSearchParams();
+    if(currentDate)params.set('date',currentDate);
+    if(currentCategory)params.set('category',currentCategory);
+    const q=params.toString()?'?'+params.toString():'';
+    const hParams=new URLSearchParams(params);
+    hParams.set('page',currentPage);hParams.set('per_page',perPage);
+    const [sr,hr]=await Promise.all([fetch('/api/stats'+q),fetch('/api/history?'+hParams.toString())]);
     const d=await sr.json(), h=await hr.json();
     watching=d.watching; updateWatcherBtn();
     document.getElementById('sMoved').textContent=d.total_moved;
@@ -559,8 +577,12 @@ async function refresh(){
     document.getElementById('sDays').textContent=d.days_active;
     const sel=document.getElementById('dateFilter'), prev=sel.value;
     sel.innerHTML='<option value="">All dates</option>'+(d.available_dates||[]).map(dt=>'<option value="'+dt+'"'+(dt===prev?' selected':'')+'>'+dt+'</option>').join('');
-    catChart.data.labels=Object.keys(d.categories); catChart.data.datasets[0].data=Object.values(d.categories);
-    catChart.data.datasets[0].backgroundColor=COLORS.slice(0,Object.keys(d.categories).length); catChart.update();
+    const catSel=document.getElementById('categoryFilter'), prevCat=catSel.value;
+    catSel.innerHTML='<option value="">All categories</option>'+(d.available_categories||[]).map(c=>'<option value="'+escapeHtml(c)+'"'+(c===prevCat?' selected':'')+'>'+escapeHtml(c)+'</option>').join('');
+    getCategoryColors(d.available_categories||[]);
+    const catLabels=Object.keys(d.categories);
+    catChart.data.labels=catLabels; catChart.data.datasets[0].data=Object.values(d.categories);
+    catChart.data.datasets[0].backgroundColor=getCategoryColors(catLabels); catChart.update();
     hourChart.data.datasets[0].data=Array.from({length:24},(_,i)=>d.hourly[i]||0); hourChart.update();
     dailyChart.data.labels=Object.keys(d.daily); dailyChart.data.datasets[0].data=Object.values(d.daily); dailyChart.update();
     historyItems=h.items;

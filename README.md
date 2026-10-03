@@ -102,6 +102,7 @@ Move history is stored in `fileSorter.db` (SQLite). Undo marks moves as reversed
 Opens a dashboard at `http://localhost:5000` with:
 
 - Category distribution (doughnut chart), hourly activity (bar chart), daily trends (line chart)
+- Global category filter — filter all stats, charts, and history by category
 - Date picker to filter all stats and history by day
 - Start/stop the watcher (via tray integration or Task Scheduler fallback)
 - Sweep trigger button

@@ -86,17 +86,25 @@ def mark_undone(move_id: int):
         conn.execute("UPDATE moves SET undone = 1 WHERE id = ?", (move_id,))
 
 
-def get_stats(date_filter: str | None = None) -> dict:
+def get_stats(date_filter: str | None = None,
+              category_filter: str | None = None) -> dict:
     with _connect() as conn:
         dates = [r[0] for r in conn.execute(
             "SELECT DISTINCT date(timestamp) FROM moves ORDER BY date(timestamp) DESC"
         ).fetchall()]
 
+        all_cats = [r[0] for r in conn.execute(
+            "SELECT DISTINCT category FROM moves WHERE undone = 0 ORDER BY category"
+        ).fetchall()]
+
         dc = ""
         dp: list = []
         if date_filter:
-            dc = "AND date(timestamp) = ?"
-            dp = [date_filter]
+            dc += " AND date(timestamp) = ?"
+            dp.append(date_filter)
+        if category_filter:
+            dc += " AND category = ?"
+            dp.append(category_filter)
 
         total_moved = conn.execute(
             f"SELECT COUNT(*) FROM moves WHERE undone = 0 {dc}", dp
@@ -129,8 +137,8 @@ def get_stats(date_filter: str | None = None) -> dict:
 
         daily = {}
         for r in conn.execute(
-            "SELECT date(timestamp) d, COUNT(*) c FROM moves "
-            "WHERE undone = 0 GROUP BY d ORDER BY d"
+            f"SELECT date(timestamp) d, COUNT(*) c FROM moves "
+            f"WHERE undone = 0 {dc} GROUP BY d ORDER BY d", dp
         ).fetchall():
             daily[r[0]] = r[1]
 
@@ -143,17 +151,22 @@ def get_stats(date_filter: str | None = None) -> dict:
             "categories": categories,
             "hourly": hourly,
             "available_dates": dates,
+            "available_categories": all_cats,
         }
 
 
 def get_history(date_filter: str | None = None, page: int = 1,
-                 per_page: int = 50) -> dict:
+                 per_page: int = 50,
+                 category_filter: str | None = None) -> dict:
     with _connect() as conn:
         dc = ""
         dp: list = []
         if date_filter:
-            dc = "AND date(timestamp) = ?"
-            dp = [date_filter]
+            dc += " AND date(timestamp) = ?"
+            dp.append(date_filter)
+        if category_filter:
+            dc += " AND category = ?"
+            dp.append(category_filter)
         total = conn.execute(
             f"SELECT COUNT(*) FROM moves WHERE undone = 0 {dc}", dp
         ).fetchone()[0]
