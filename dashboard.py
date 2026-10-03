@@ -118,10 +118,11 @@ h1 { font-size: 24px; margin-bottom: 4px; }
 }
 .section-header h3 { margin-bottom: 0; }
 table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
-.history-table-wrap { min-height: 400px; }
+.history-table-wrap { height: 540px; overflow-y: auto; }
 th {
     text-align: left; color: var(--muted); font-weight: 600;
     padding: 6px 10px; border-bottom: 2px solid var(--border);
+    position: sticky; top: 0; background: var(--card); z-index: 1;
 }
 td { padding: 6px 10px; border-bottom: 1px solid var(--border); }
 tr:hover { background: var(--bg); }

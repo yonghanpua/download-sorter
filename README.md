@@ -106,7 +106,7 @@ Opens a dashboard at `http://localhost:5000` with:
 - Sweep trigger button
 - Move history table with checkboxes for selective undo
 - Search/filter on history table by filename or destination
-- Paginated history (50 per page) with navigation controls
+- Paginated history with rows-per-page selector (10/25/50/100) and fixed-height table
 - File existence status indicator (exists/missing)
 - Auto-refreshes every 10 seconds
 - **Settings page** (`/settings`) — edit all config from the browser:
