@@ -10,7 +10,9 @@ from flask import Flask, jsonify, render_template_string, request
 import config
 import db
 from main import DailyLogHandler
-from sorter import sweep, undo, undo_selected
+from sorter import (sweep, undo, undo_selected, is_temp_file, is_ignored,
+                     get_client, get_client_subcategory, get_regex_category,
+                     get_category)
 
 LOG_DIR = Path(__file__).parent / "logs"
 log = logging.getLogger("fileSorter")
@@ -258,6 +260,79 @@ def api_reset_settings():
             db.delete_setting(k)
     config.load_overrides()
     return jsonify({"ok": True})
+
+
+@app.route("/api/test-sort", methods=["POST"])
+def api_test_sort():
+    filename = (request.json or {}).get("filename", "").strip()
+    if not filename:
+        return jsonify({"error": "No filename provided"}), 400
+
+    path = Path(filename)
+    steps = []
+    result = {"filename": filename, "steps": steps}
+
+    if is_temp_file(path):
+        steps.append({"step": 1, "name": "Temp File", "matched": True,
+                       "detail": f"Extension '{path.suffix}' is a temp file"})
+        result["outcome"] = "skip"
+        result["reason"] = "Temp file — skipped"
+        return jsonify(result)
+    steps.append({"step": 1, "name": "Temp File", "matched": False})
+
+    if path.name.startswith("."):
+        steps.append({"step": 2, "name": "Dotfile", "matched": True,
+                       "detail": "Filename starts with '.'"})
+        result["outcome"] = "skip"
+        result["reason"] = "Dotfile — skipped"
+        return jsonify(result)
+    steps.append({"step": 2, "name": "Dotfile", "matched": False})
+
+    if is_ignored(path):
+        steps.append({"step": 3, "name": "Ignore List", "matched": True,
+                       "detail": f"'{path.name}' matches an ignore pattern"})
+        result["outcome"] = "skip"
+        result["reason"] = "Ignore list — skipped"
+        return jsonify(result)
+    steps.append({"step": 3, "name": "Ignore List", "matched": False})
+
+    client = get_client(path)
+    if client:
+        subcat = get_client_subcategory(path)
+        dest = f"{client}\\{subcat}" if subcat else client
+        steps.append({"step": 4, "name": "Client Match", "matched": True,
+                       "detail": f"Client '{client}'" + (f", sub-category '{subcat}'" if subcat else "")})
+        result["outcome"] = "sort"
+        result["reason"] = f"Client match — sorted to {dest}"
+        result["destination"] = dest
+        return jsonify(result)
+    steps.append({"step": 4, "name": "Client Match", "matched": False})
+
+    regex_cat = get_regex_category(path)
+    if regex_cat:
+        steps.append({"step": 5, "name": "Regex Rules", "matched": True,
+                       "detail": f"Matched regex rule → '{regex_cat}'"})
+        result["outcome"] = "sort"
+        result["reason"] = f"Regex match — sorted to {regex_cat}"
+        result["destination"] = regex_cat
+        return jsonify(result)
+    steps.append({"step": 5, "name": "Regex Rules", "matched": False})
+
+    cat = get_category(path)
+    if cat:
+        steps.append({"step": 6, "name": "Extension", "matched": True,
+                       "detail": f"'{path.suffix}' → {cat}"})
+        result["outcome"] = "sort"
+        result["reason"] = f"Extension match — sorted to {cat}"
+        result["destination"] = cat
+        return jsonify(result)
+    steps.append({"step": 6, "name": "Extension", "matched": False})
+
+    steps.append({"step": 7, "name": "Unknown", "matched": True,
+                   "detail": f"No rule matches '{path.suffix or '(no extension)'}'"})
+    result["outcome"] = "skip"
+    result["reason"] = "Unknown extension — left in place"
+    return jsonify(result)
 
 
 # --- Dashboard template ---
@@ -630,6 +705,49 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
     display: flex; align-items: center; color: var(--muted); font-size: 14px;
     padding: 0; flex-shrink: 0; margin-top: -10px;
 }
+.rule-tester { display: flex; gap: 8px; margin-bottom: 14px; }
+.rule-tester input {
+    flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--bg); color: var(--text); font-size: 14px;
+}
+.rule-tester input:focus { outline: none; border-color: var(--primary); }
+.test-result {
+    border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+    display: none;
+}
+.test-result.visible { display: block; }
+.test-outcome {
+    padding: 12px 16px; font-size: 14px; font-weight: 600;
+    display: flex; align-items: center; gap: 10px;
+}
+.test-outcome.sort { background: #052e16; color: #86efac; }
+.test-outcome.skip { background: #450a0a; color: #fca5a5; }
+.test-dest { font-weight: 400; opacity: 0.85; }
+.test-steps {
+    display: flex; gap: 0; padding: 0; border-top: 1px solid var(--border);
+}
+.test-step {
+    flex: 1; padding: 8px 6px; text-align: center; font-size: 11px;
+    border-right: 1px solid var(--border); position: relative;
+}
+.test-step:last-child { border-right: none; }
+.test-step .ts-num {
+    width: 20px; height: 20px; border-radius: 50%; font-size: 10px; font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center; margin-bottom: 3px;
+}
+.test-step .ts-label { display: block; font-weight: 600; color: var(--muted); }
+.test-step.pass .ts-num { background: var(--border); color: var(--muted); }
+.test-step.pass .ts-label { color: var(--muted); }
+.test-step.hit-sort .ts-num { background: #14532d; color: #86efac; }
+.test-step.hit-sort .ts-label { color: #86efac; }
+.test-step.hit-sort { background: rgba(22,163,74,0.08); }
+.test-step.hit-skip .ts-num { background: #7f1d1d; color: #fca5a5; }
+.test-step.hit-skip .ts-label { color: #fca5a5; }
+.test-step.hit-skip { background: rgba(220,38,38,0.08); }
+.test-step .ts-detail {
+    display: block; font-size: 10px; color: var(--muted); margin-top: 2px;
+    font-weight: 400;
+}
 </style>
 </head>
 <body>
@@ -692,6 +810,17 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
             <span class="pipe-desc">Left in place</span>
         </div>
     </div>
+</div>
+
+<!-- Rule Tester -->
+<div class="chart-card">
+    <h3>Rule Tester</h3>
+    <p style="font-size:12px;color:var(--muted);margin:4px 0 10px">Type a filename to see which rule matches and where it would be sorted.</p>
+    <div class="rule-tester">
+        <input type="text" id="testFilename" placeholder="e.g. AKSS_proposal.pdf, screenshot_2026.png, .gitignore" onkeydown="if(event.key==='Enter')testSort()">
+        <button class="btn btn-primary" onclick="testSort()">Test</button>
+    </div>
+    <div class="test-result" id="testResult"></div>
 </div>
 
 <!-- General -->
@@ -1056,6 +1185,49 @@ async function resetAll() {
         showToast('Settings reset to defaults');
         await loadSettings();
     }
+}
+
+async function testSort() {
+    const filename = document.getElementById('testFilename').value.trim();
+    if (!filename) return;
+    const r = await fetch('/api/test-sort', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({filename})
+    });
+    const d = await r.json();
+    const el = document.getElementById('testResult');
+    const allSteps = [
+        {step:1, name:'Temp File'}, {step:2, name:'Dotfile'}, {step:3, name:'Ignore List'},
+        {step:4, name:'Client Match'}, {step:5, name:'Regex Rules'},
+        {step:6, name:'Extension'}, {step:7, name:'Unknown'}
+    ];
+    const hitStep = d.steps[d.steps.length - 1];
+    let html = '<div class="test-outcome ' + d.outcome + '">';
+    if (d.outcome === 'sort') {
+        html += '<span>&#10004;</span> <span>' + escapeHtml(d.reason) + '</span>';
+    } else {
+        html += '<span>&#10007;</span> <span>' + escapeHtml(d.reason) + '</span>';
+    }
+    html += '</div><div class="test-steps">';
+    for (const s of allSteps) {
+        const found = d.steps.find(x => x.step === s.step);
+        let cls = '';
+        if (found && found.matched) {
+            cls = d.outcome === 'sort' ? 'hit-sort' : 'hit-skip';
+        } else if (found) {
+            cls = 'pass';
+        } else {
+            cls = '';
+        }
+        html += '<div class="test-step ' + cls + '">';
+        html += '<span class="ts-num">' + s.step + '</span>';
+        html += '<span class="ts-label">' + s.name + '</span>';
+        if (found && found.detail) html += '<span class="ts-detail">' + escapeHtml(found.detail) + '</span>';
+        html += '</div>';
+    }
+    html += '</div>';
+    el.innerHTML = html;
+    el.classList.add('visible');
 }
 
 async function loadSettings() {
