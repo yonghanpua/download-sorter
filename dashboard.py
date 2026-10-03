@@ -134,7 +134,7 @@ tr:hover { background: var(--bg); }
     font-size: 11px; font-weight: 600; background: #1e293b; color: #93c5fd;
 }
 .toast {
-    position: fixed; bottom: 24px; right: 24px; padding: 12px 20px;
+    position: fixed; bottom: 70px; right: 24px; padding: 12px 20px;
     background: var(--card); border: 1px solid var(--border);
     border-radius: 10px; font-size: 13px; font-weight: 600;
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
@@ -1043,6 +1043,68 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
 .regex-test-result { font-size: 11px; white-space: nowrap; }
 .regex-match { color: #86efac; }
 .regex-no-match { color: #fca5a5; }
+
+/* --- Sticky action bar --- */
+.action-bar {
+    position: sticky; bottom: 0; z-index: 50;
+    display: flex; align-items: center; gap: 8px;
+    padding: 12px 0; margin: 0 -24px; padding-left: 24px; padding-right: 24px;
+    background: var(--bg); border-top: 1px solid var(--border);
+}
+.action-bar-left { display: flex; align-items: center; gap: 10px; }
+.action-bar-right { margin-left: auto; }
+.action-bar .unsaved-badge {
+    font-size: 11px; font-weight: 600; color: var(--warning);
+    display: none; align-items: center; gap: 4px;
+}
+.action-bar .unsaved-badge.visible { display: inline-flex; }
+.btn-group { display: inline-flex; }
+.btn-group .btn { border-radius: 0; }
+.btn-group .btn:first-child { border-radius: 8px 0 0 8px; }
+.btn-group .btn:last-child { border-radius: 0 8px 8px 0; }
+.btn-group .btn + .btn { border-left: 1px solid rgba(255,255,255,0.1); }
+.btn-secondary {
+    background: var(--card); color: var(--text); border: 1px solid var(--border);
+}
+.btn-danger-outline {
+    background: transparent; border: 1px solid var(--danger); color: var(--danger);
+}
+.btn-danger-outline:hover { background: rgba(220,38,38,0.1); }
+
+/* --- Modal --- */
+.modal-overlay {
+    display: none; position: fixed; inset: 0; z-index: 200;
+    background: rgba(0,0,0,0.6); align-items: center; justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 24px; max-width: 480px; width: 90%; max-height: 80vh; overflow-y: auto;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+.modal h3 { font-size: 16px; color: var(--text); margin-bottom: 12px; }
+.modal p { font-size: 13px; color: var(--muted); margin-bottom: 12px; line-height: 1.5; }
+.modal ul { font-size: 12px; color: var(--text); margin: 8px 0 16px 18px; line-height: 1.8; }
+.modal-actions {
+    display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px;
+    padding-top: 12px; border-top: 1px solid var(--border);
+}
+.modal-actions .btn { min-width: 100px; }
+.import-summary { margin: 12px 0; }
+.import-summary dt { font-size: 12px; font-weight: 600; color: var(--muted); float: left; width: 140px; }
+.import-summary dd { font-size: 12px; color: var(--text); margin-left: 148px; margin-bottom: 4px; }
+
+@media (max-width: 600px) {
+    .action-bar {
+        flex-wrap: wrap; gap: 8px;
+    }
+    .action-bar-left { width: 100%; }
+    .action-bar-left .btn { flex: 1; }
+    .btn-group { flex: 1; }
+    .btn-group .btn { flex: 1; }
+    .action-bar-right { width: 100%; margin-left: 0; }
+    .action-bar-right .btn { width: 100%; }
+}
 </style>
 </head>
 <body>
@@ -1051,13 +1113,6 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
     <div class="header-left">
         <h1>Settings</h1>
         <span class="subtitle"><a href="/">Back to Dashboard</a></span>
-    </div>
-    <div class="controls">
-        <button class="btn btn-primary" onclick="saveAll()">Save Settings</button>
-        <button class="btn" onclick="exportSettings()" style="background:var(--card);color:var(--text)">Export</button>
-        <button class="btn" onclick="document.getElementById('importFile').click()" style="background:var(--card);color:var(--text)">Import</button>
-        <input type="file" id="importFile" accept=".json" style="display:none" onchange="importSettings(this)">
-        <button class="btn btn-danger" onclick="resetAll()">Reset to Defaults</button>
     </div>
 </div>
 
@@ -1293,16 +1348,109 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
     </div>
 </div>
 
+<div class="action-bar">
+    <div class="action-bar-left">
+        <button class="btn btn-primary" id="btnSave" onclick="saveAll()" disabled>Save Settings</button>
+        <span class="unsaved-badge" id="unsavedBadge">&#9679; Unsaved changes</span>
+    </div>
+    <div class="btn-group">
+        <button class="btn btn-secondary" onclick="exportSettings()">Export JSON</button>
+        <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">Import JSON</button>
+    </div>
+    <input type="file" id="importFile" accept=".json" style="display:none" onchange="handleImportFile(this)">
+    <div class="action-bar-right">
+        <button class="btn btn-danger-outline" onclick="openResetModal()">Reset to Defaults</button>
+    </div>
+</div>
+
+<!-- Reset confirmation modal -->
+<div class="modal-overlay" id="resetModal" role="dialog" aria-modal="true" aria-label="Reset settings confirmation">
+    <div class="modal">
+        <h3>Reset all settings?</h3>
+        <p>This will erase all saved overrides and restore every setting to its code default. The following will be reset:</p>
+        <ul>
+            <li>Clients &amp; client projects</li>
+            <li>Client sub-categories</li>
+            <li>File categories &amp; extensions</li>
+            <li>Regex rules</li>
+            <li>Ignore list</li>
+            <li>Watched folders</li>
+            <li>General settings (folder, debounce, cron, notifications)</li>
+        </ul>
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="exportSettings(); showToast('Backup exported')">Download backup first</button>
+            <button class="btn btn-secondary" id="resetCancelBtn" onclick="closeModal('resetModal')">Cancel</button>
+            <button class="btn btn-danger" onclick="confirmReset()">Reset everything</button>
+        </div>
+    </div>
+</div>
+
+<!-- Import confirmation modal -->
+<div class="modal-overlay" id="importModal" role="dialog" aria-modal="true" aria-label="Import settings confirmation">
+    <div class="modal">
+        <h3>Import settings?</h3>
+        <p>This will replace your current settings with the imported file. Review the summary below:</p>
+        <dl class="import-summary" id="importSummary"></dl>
+        <div class="modal-actions">
+            <button class="btn btn-secondary" id="importCancelBtn" onclick="closeModal('importModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="confirmImport()">Apply imported settings</button>
+        </div>
+    </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
 let S = {};
+let S_clean = '';
+let _pendingImport = null;
 
-function showToast(msg) {
+function showToast(msg, isError) {
     const t = document.getElementById('toast');
-    t.textContent = msg; t.classList.add('show');
+    t.textContent = msg;
+    t.style.borderColor = isError ? 'var(--danger)' : 'var(--border)';
+    t.classList.add('show');
     setTimeout(() => t.classList.remove('show'), 3000);
 }
+
+function snapshotClean() {
+    S_clean = JSON.stringify(collectState());
+}
+
+function isDirty() {
+    try { return JSON.stringify(collectState()) !== S_clean; } catch(e) { return false; }
+}
+
+function updateDirtyState() {
+    const dirty = isDirty();
+    document.getElementById('btnSave').disabled = !dirty;
+    const badge = document.getElementById('unsavedBadge');
+    badge.classList.toggle('visible', dirty);
+}
+
+function openModal(id) {
+    const overlay = document.getElementById(id);
+    overlay.classList.add('open');
+    const cancel = overlay.querySelector('[id$="CancelBtn"]');
+    if (cancel) cancel.focus();
+    overlay.addEventListener('keydown', _modalKeyHandler);
+}
+
+function closeModal(id) {
+    const overlay = document.getElementById(id);
+    overlay.classList.remove('open');
+    overlay.removeEventListener('keydown', _modalKeyHandler);
+}
+
+function _modalKeyHandler(e) {
+    if (e.key === 'Escape') {
+        e.target.closest('.modal-overlay').classList.remove('open');
+    }
+}
+
+window.addEventListener('beforeunload', function(e) {
+    if (isDirty()) { e.preventDefault(); }
+});
 
 function escapeHtml(s) { const el = document.createElement('div'); el.textContent = s; return el.innerHTML; }
 
@@ -1816,14 +1964,18 @@ async function saveAll() {
     const d = await r.json();
     if (d.ok) {
         S = data;
+        snapshotClean();
+        updateDirtyState();
         showToast('Settings saved');
     } else {
-        showToast('Error saving settings');
+        showToast('Error saving settings', true);
     }
 }
 
-async function resetAll() {
-    if (!confirm('Reset all settings to code defaults?')) return;
+function openResetModal() { openModal('resetModal'); }
+
+async function confirmReset() {
+    closeModal('resetModal');
     const r = await fetch('/api/settings/reset', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1833,6 +1985,8 @@ async function resetAll() {
     if (d.ok) {
         showToast('Settings reset to defaults');
         await loadSettings();
+    } else {
+        showToast('Error resetting settings', true);
     }
 }
 
@@ -1848,22 +2002,48 @@ function exportSettings() {
     showToast('Settings exported');
 }
 
-function importSettings(input) {
+function handleImportFile(input) {
     const file = input.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = async function(e) {
+    reader.onload = function(e) {
+        let data;
         try {
-            const data = JSON.parse(e.target.result);
-            S = data;
-            renderAll();
-            showToast('Settings imported — click Save to apply');
+            data = JSON.parse(e.target.result);
         } catch (err) {
-            showToast('Invalid JSON file');
+            showToast('Invalid JSON file — could not parse', true);
+            return;
         }
+        if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+            showToast('Invalid settings file — expected a JSON object', true);
+            return;
+        }
+        _pendingImport = data;
+        const dl = document.getElementById('importSummary');
+        const items = [
+            ['Clients', Object.keys(data.clients || {}).length],
+            ['Client projects', Object.values(data.client_projects || {}).reduce((s, p) => s + Object.keys(p).length, 0)],
+            ['Sub-categories', Object.keys(data.client_subcategories || {}).length],
+            ['File categories', Object.keys(data.categories || {}).length],
+            ['Regex rules', Object.keys(data.regex_rules || {}).length],
+            ['Ignore list', (data.ignore_list || []).length],
+            ['Watched folders', (data.watched_folders || []).length],
+        ];
+        dl.innerHTML = items.map(([k, v]) => '<dt>' + k + '</dt><dd>' + v + '</dd>').join('');
+        openModal('importModal');
     };
     reader.readAsText(file);
     input.value = '';
+}
+
+function confirmImport() {
+    closeModal('importModal');
+    if (!_pendingImport) return;
+    S = _pendingImport;
+    _pendingImport = null;
+    renderAll();
+    updateDirtyState();
+    showToast('Settings imported — click Save to apply');
 }
 
 function renderWatchedFolders() {
@@ -2008,9 +2188,24 @@ async function loadSettings() {
     const r = await fetch('/api/settings');
     S = await r.json();
     renderAll();
+    snapshotClean();
+    updateDirtyState();
 }
 
 loadSettings();
+
+document.body.addEventListener('input', function(e) {
+    if (e.target.closest('.action-bar') || e.target.closest('.modal-overlay') || e.target.closest('.rule-tester') || e.target.closest('.regex-test-cell')) return;
+    updateDirtyState();
+});
+document.body.addEventListener('change', function(e) {
+    if (e.target.closest('.action-bar') || e.target.closest('.modal-overlay')) return;
+    updateDirtyState();
+});
+new MutationObserver(function() { updateDirtyState(); }).observe(
+    document.body,
+    { childList: true, subtree: true }
+);
 </script>
 </body>
 </html>"""

@@ -15,7 +15,7 @@ A Python utility that automatically organizes your Downloads folder by sorting f
 - **Undo** — reverse the last move, last N moves, cherry-pick specific files, or batch undo by time range
 - **SQLite history** — all moves tracked in a local database with full audit trail
 - **Web dashboard** — live stats, charts, date filtering, watcher control, and selective undo
-- **Browser settings** — edit all configuration (categories, clients, regex rules, ignore list) from the dashboard
+- **Browser settings** — edit all configuration from the dashboard with dirty-state tracking, unsaved-changes warning, import/export with confirmation, and safe reset with backup option
 - **System tray icon** — pystray-based tray icon with status, Pause/Resume Watcher, Sweep Now, Open Dashboard, and Quit
 - **Desktop notifications** — Windows toast notifications when files are sorted (toggle on/off in settings)
 - **Daily logs** — human-readable audit trail in `logs/yyyy/mm/dd.log`
@@ -128,8 +128,10 @@ Opens a dashboard at `http://localhost:5000` with:
   - Client sub-categories with nested tree view (keywords, extensions, and linked file categories per sub-category)
   - Ignore list (glob patterns)
   - Regex rules (pattern → folder) with inline test input per rule and collapsible cheat sheet
-  - Export/import settings as JSON for backup or sharing
-  - Save All / Reset to Defaults buttons
+  - Export/import settings as JSON with confirmation summary before applying
+  - Sticky action bar with Save, Export/Import button group, and Reset to Defaults
+  - Dirty-state tracking with unsaved-changes indicator and page-leave warning
+  - Reset confirmation modal listing what will be erased, with backup-first option
   - Watched folders management — add/remove folders, toggle per-folder sorting rules
   - Changes are stored in SQLite and applied at runtime — no restart needed
 
