@@ -275,6 +275,21 @@ class TestSortFile:
         assert sort_file(f, tmp_path) is None
         assert f.exists()
 
+    def test_skips_locked_file(self, tmp_path):
+        f = tmp_path / "open_doc.pptx"
+        f.write_text("test")
+        fh = open(f, "r+b")
+        try:
+            import msvcrt
+            msvcrt.locking(fh.fileno(), msvcrt.LK_NBLCK, 1)
+            assert sort_file(f, tmp_path) is None
+            assert f.exists()
+            msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
+        except (ImportError, OSError):
+            pytest.skip("msvcrt locking not available")
+        finally:
+            fh.close()
+
     def test_handles_duplicate(self, tmp_path):
         docs = tmp_path / "Documents" / "PDFs"
         docs.mkdir(parents=True)

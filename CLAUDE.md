@@ -56,4 +56,4 @@ powershell -ExecutionPolicy Bypass -File setup.ps1
 - Duplicate resolution appends ` (1)`, ` (2)`, etc. — never overwrites.
 - The watcher uses a per-file debounce timer (default 3s) so that Chrome `.crdownload` → final rename events are handled cleanly.
 - `recursive=False` on the observer — only top-level files are watched, not the category subfolders.
-- Priority order for sorting: temp file → dotfile → ignore list → client match (with optional project + sub-category) → regex rules → extension category.
+- Priority order for sorting: temp file → dotfile → ignore list → locked file → client match (with optional project + sub-category) → regex rules → extension category.

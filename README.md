@@ -7,7 +7,7 @@ A Python utility that automatically organizes your Downloads folder by sorting f
 - **Multi-folder watching** — watch Downloads, Desktop, or any folder with per-folder rule toggles (ignore list, client match, regex, extension categories)
 - **Real-time sorting** — watches your folders and moves files as they arrive
 - **Batch sweep** — one-command cleanup of all existing files, with configurable cron schedule for automatic sweeps
-- **Smart download handling** — ignores incomplete downloads (`.crdownload`, `.part`, `.tmp`) until finished
+- **Smart download handling** — ignores incomplete downloads (`.crdownload`, `.part`, `.tmp`) until finished; skips files open by another process
 - **Duplicate safety** — auto-renames with `(1)`, `(2)`, etc. instead of overwriting
 - **Client sorting** — route files to client folders with optional project-level organization and sub-categories based on filename keywords
 - **Regex rules** — optional pattern-to-folder mapping for custom naming conventions
@@ -399,10 +399,11 @@ Files are evaluated in this order — first match wins:
 1. **Temp file** (`.crdownload`, `.part`, etc.) — skip
 2. **Dotfile** (`.hidden`) — skip
 3. **Ignore list** match — skip
-4. **Client keyword** match — client folder with optional project + sub-category
-5. **Regex rule** match — custom folder
-6. **Extension category** match — category folder
-7. **Unknown extension** — leave in place
+4. **Locked file** (open by another process) — skip
+5. **Client keyword** match — client folder with optional project + sub-category
+6. **Regex rule** match — custom folder
+7. **Extension category** match — category folder
+8. **Unknown extension** — leave in place
 
 ## Project Structure
 
@@ -416,7 +417,7 @@ fileSorter/
 ├── tray.py          # System tray icon with watcher, dashboard, and controls
 ├── notify.py        # Windows toast notifications
 ├── dashboard.py     # Flask web dashboard with Chart.js + settings
-├── test_sorter.py   # pytest test suite (80 tests)
+├── test_sorter.py   # pytest test suite (81 tests)
 ├── setup.ps1        # Windows Task Scheduler registration
 └── requirements.txt # Dependencies: watchdog, pytest, flask, winotify, pystray, Pillow
 ```

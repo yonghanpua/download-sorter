@@ -1168,26 +1168,32 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
             <span class="pipe-desc">Glob patterns to skip</span>
         </div>
         <span class="pipe-arrow">&#9654;</span>
-        <div class="pipe-step match">
+        <div class="pipe-step skip">
             <span class="pipe-num">4</span>
+            <span class="pipe-label">Locked File</span>
+            <span class="pipe-desc">Open by another process</span>
+        </div>
+        <span class="pipe-arrow">&#9654;</span>
+        <div class="pipe-step match">
+            <span class="pipe-num">5</span>
             <span class="pipe-label">Client Match</span>
             <span class="pipe-desc">Keyword &#8594; client folder + sub-category</span>
         </div>
         <span class="pipe-arrow">&#9654;</span>
         <div class="pipe-step match">
-            <span class="pipe-num">5</span>
+            <span class="pipe-num">6</span>
             <span class="pipe-label">Regex Rules</span>
             <span class="pipe-desc">Pattern &#8594; custom folder</span>
         </div>
         <span class="pipe-arrow">&#9654;</span>
         <div class="pipe-step fallback">
-            <span class="pipe-num">6</span>
+            <span class="pipe-num">7</span>
             <span class="pipe-label">Extension</span>
             <span class="pipe-desc">Category by file type</span>
         </div>
         <span class="pipe-arrow">&#9654;</span>
         <div class="pipe-step end">
-            <span class="pipe-num">7</span>
+            <span class="pipe-num">8</span>
             <span class="pipe-label">Unknown</span>
             <span class="pipe-desc">Left in place</span>
         </div>
@@ -1280,10 +1286,10 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
     </div>
 </div>
 
-<!-- Step 4: Clients -->
+<!-- Step 5: Clients -->
 <div class="chart-card step-match">
     <div class="section-header">
-        <h3><span class="step-badge match">4</span>Clients</h3>
+        <h3><span class="step-badge match">5</span>Clients</h3>
     </div>
     <div id="clientContainer"></div>
     <div class="add-row" style="margin-top:10px">
@@ -1292,10 +1298,10 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
     </div>
 </div>
 
-<!-- Step 4: Client Projects -->
+<!-- Step 5: Client Projects -->
 <div class="chart-card step-match">
     <div class="section-header">
-        <h3><span class="step-badge match">4</span>Client Projects</h3>
+        <h3><span class="step-badge match">5</span>Client Projects</h3>
     </div>
     <p style="font-size:12px;color:var(--muted);margin:0 0 10px">Optional — files matching a project keyword are sorted into a project subfolder within the client folder.</p>
     <div id="projectContainer"></div>
@@ -1306,10 +1312,10 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
     </div>
 </div>
 
-<!-- Step 4: Client Sub-categories -->
+<!-- Step 5: Client Sub-categories -->
 <div class="chart-card step-match">
     <div class="section-header">
-        <h3><span class="step-badge match">4</span>Client Sub-categories</h3>
+        <h3><span class="step-badge match">5</span>Client Sub-categories</h3>
     </div>
     <div id="subcatContainer"></div>
     <div class="add-row" style="margin-top:10px">
@@ -1318,10 +1324,10 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
     </div>
 </div>
 
-<!-- Step 5: Regex Rules -->
+<!-- Step 6: Regex Rules -->
 <div class="chart-card step-match">
     <div class="section-header">
-        <h3><span class="step-badge match">5</span>Regex Rules</h3>
+        <h3><span class="step-badge match">6</span>Regex Rules</h3>
     </div>
     <table id="regexTable">
         <thead><tr><th>Pattern</th><th>Folder</th><th>Test</th><th style="width:40px"></th></tr></thead>
@@ -1363,10 +1369,10 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
     </div>
 </div>
 
-<!-- Step 6: File Categories -->
+<!-- Step 7: File Categories -->
 <div class="chart-card step-fallback">
     <div class="section-header">
-        <h3><span class="step-badge fallback">6</span>File Categories</h3>
+        <h3><span class="step-badge fallback">7</span>File Categories</h3>
     </div>
     <div class="tree" id="catContainer"></div>
     <div class="add-row" style="margin-top:10px">

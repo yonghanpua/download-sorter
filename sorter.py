@@ -1,5 +1,6 @@
 import fnmatch
 import logging
+import os
 import re
 import shutil
 from pathlib import Path
@@ -9,6 +10,14 @@ import db
 import notify
 
 log = logging.getLogger("fileSorter")
+
+
+def is_locked(path: Path) -> bool:
+    try:
+        os.rename(str(path), str(path))
+        return False
+    except (PermissionError, OSError):
+        return True
 
 
 def is_temp_file(path: Path) -> bool:
@@ -90,6 +99,9 @@ def sort_file(path: Path, base: Path = None, rules: dict = None) -> Path | None:
     if path.name.startswith("."):
         return None
     if rules.get("ignore_list", True) and is_ignored(path):
+        return None
+    if is_locked(path):
+        log.debug("Skipped %s: file is open by another process", path.name)
         return None
 
     if rules.get("client_match", True):
