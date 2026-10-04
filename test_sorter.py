@@ -14,6 +14,7 @@ from sorter import (
     resolve_duplicate,
     sort_file,
     sweep,
+    dry_run,
     undo,
     undo_selected,
 )
@@ -454,6 +455,52 @@ class TestSweep:
         assert (dest / "Documents" / "PDFs" / "report.pdf").exists()
         assert not (source / "photo.jpg").exists()
         assert not (source / "report.pdf").exists()
+
+
+# --- test_sort (dry run) ---
+
+class TestTestSort:
+    def test_extension_match(self):
+        result = dry_run("photo.jpg")
+        assert result["skipped"] is False
+        assert result["rule"] == "Extension"
+        assert result["category"] == "Images/Photos"
+        assert "Images" in result["dest"]
+
+    def test_unknown_extension(self):
+        result = dry_run("mystery.xyz123")
+        assert result["skipped"] is True
+        assert result["reason"] == "Unknown extension"
+
+    def test_temp_file(self):
+        result = dry_run("download.crdownload")
+        assert result["skipped"] is True
+        assert result["reason"] == "Temp file"
+
+    def test_dotfile(self):
+        result = dry_run(".gitignore")
+        assert result["skipped"] is True
+        assert result["reason"] == "Dot file"
+
+    def test_client_match(self):
+        result = dry_run("AKSS_invoice_2024.pdf")
+        assert result["skipped"] is False
+        assert result["rule"] == "Client Match"
+        assert result["category"] == "AKSS"
+
+    def test_regex_match(self, monkeypatch):
+        monkeypatch.setattr(config, "REGEX_RULES", {"^INV-\\d+": "Invoices"})
+        result = dry_run("INV-1234.pdf")
+        assert result["skipped"] is False
+        assert result["rule"] == "Regex Rule"
+        assert result["category"] == "Invoices"
+
+    def test_rules_disable_client(self):
+        result = dry_run("AKSS_report.pdf", rules={
+            "ignore_list": True, "client_match": False,
+            "regex_rules": True, "extension_categories": True
+        })
+        assert result["rule"] == "Extension"
 
 
 # --- undo ---

@@ -14,7 +14,7 @@ A Python utility that automatically organizes your Downloads folder by sorting f
 - **Ignore list** — skip specific files or glob patterns from being sorted
 - **Undo** — reverse the last move, last N moves, cherry-pick specific files, or batch undo by time range
 - **SQLite history** — all moves tracked in a local database with full audit trail
-- **Web dashboard** — live stats, charts, date filtering, watcher control, and selective undo
+- **Web dashboard** — live stats, charts, date filtering, watcher control, drag-and-drop rule testing, and selective undo
 - **Browser settings** — edit all configuration from the dashboard with dirty-state tracking, unsaved-changes warning, import/export with confirmation, and safe reset with backup option
 - **System tray icon** — pystray-based tray icon with status, Pause/Resume Watcher, Sweep Now, Open Dashboard, and Quit
 - **Desktop notifications** — Windows toast notifications when files are sorted (toggle on/off in settings)
@@ -112,7 +112,8 @@ Opens a dashboard at `http://localhost:5000` with:
 - Start/stop the watcher (via tray integration or Task Scheduler fallback)
 - Sweep trigger button
 - Undo timeline — visual bar chart of moves over time; click two bars or use date pickers to select a range, then batch undo all moves in that range
-- Move history table with checkboxes for selective undo
+- Drag-and-drop rule tester — drop files from your desktop to preview which rule matches and where they'd go, without moving anything
+- Move history table with Rule column and checkboxes for selective undo
 - Search/filter on history table by filename or destination
 - Paginated history with rows-per-page selector (10/25/50/100) and fixed-height table
 - File existence status indicator (exists/missing)
@@ -421,7 +422,7 @@ fileSorter/
 ├── tray.py          # System tray icon with watcher, dashboard, and controls
 ├── notify.py        # Windows toast notifications
 ├── dashboard.py     # Flask web dashboard with Chart.js + settings
-├── test_sorter.py   # pytest test suite (82 tests)
+├── test_sorter.py   # pytest test suite (89 tests)
 ├── setup.ps1        # Windows Task Scheduler registration
 └── requirements.txt # Dependencies: watchdog, pytest, flask, winotify, pystray, Pillow
 ```

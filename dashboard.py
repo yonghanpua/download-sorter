@@ -501,6 +501,25 @@ input[type="checkbox"] { cursor: pointer; accent-color: var(--primary); }
     background: var(--card); color: var(--text); font-size: 12px; cursor: pointer;
     margin-left: 8px;
 }
+.drop-zone {
+    border: 2px dashed var(--border); border-radius: 12px; padding: 24px;
+    text-align: center; color: var(--muted); cursor: pointer;
+    transition: border-color 0.2s, background 0.2s; margin-bottom: 20px;
+}
+.drop-zone.drag-over { border-color: var(--primary); background: rgba(37,99,235,0.08); }
+.drop-zone h3 { margin: 0 0 4px; color: var(--text); font-size: 14px; }
+.drop-zone p { margin: 0; font-size: 12px; }
+.drop-results { margin-top: 16px; text-align: left; }
+.drop-results table { margin: 0 auto; }
+.drop-result-row td { padding: 4px 12px; font-size: 12px; }
+.drop-result-rule {
+    display: inline-block; padding: 2px 8px; border-radius: 10px;
+    font-size: 11px; font-weight: 600;
+}
+.rule-client { background: #1e3a5f; color: #93c5fd; }
+.rule-regex { background: #3b1f5e; color: #c4b5fd; }
+.rule-extension { background: #1a3a2a; color: #86efac; }
+.rule-skipped { background: #3f1f1f; color: #fca5a5; }
 </style>
 </head>
 <body>
@@ -522,6 +541,12 @@ input[type="checkbox"] { cursor: pointer; accent-color: var(--primary); }
     <div class="stat-card"><div class="stat-value warning" id="sUndone">-</div><div class="stat-label">Files Undone</div></div>
     <div class="stat-card"><div class="stat-value success" id="sSweeps">-</div><div class="stat-label">Sweeps Run</div></div>
     <div class="stat-card"><div class="stat-value info" id="sDays">-</div><div class="stat-label">Days Active</div></div>
+</div>
+
+<div class="drop-zone" id="dropZone">
+    <h3>Drop files here to test sorting rules</h3>
+    <p>Drag files from your desktop to preview which rule matches &mdash; nothing will be moved</p>
+    <div class="drop-results" id="dropResults"></div>
 </div>
 
 <div class="charts">
@@ -827,6 +852,40 @@ function renderPagination(){
     el.innerHTML=html;
 }
 initCharts(); refresh(); setInterval(refresh,10000);
+
+const dz=document.getElementById('dropZone');
+const dr=document.getElementById('dropResults');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag-over');});
+dz.addEventListener('dragleave',()=>{dz.classList.remove('drag-over');});
+dz.addEventListener('drop',async e=>{
+    e.preventDefault();
+    dz.classList.remove('drag-over');
+    const files=e.dataTransfer.files;
+    if(!files.length)return;
+    const names=Array.from(files).map(f=>f.name).slice(0,20);
+    dr.innerHTML='<p style="color:var(--muted);font-size:12px">Testing '+names.length+' file(s)...</p>';
+    const results=await Promise.all(names.map(async name=>{
+        const r=await fetch('/api/test-sort',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:name})});
+        return r.json();
+    }));
+    let html='<table style="width:100%"><thead><tr><th>File</th><th>Rule</th><th>Destination</th></tr></thead><tbody>';
+    results.forEach(item=>{
+        const matched=item.steps.find(s=>s.matched);
+        const ruleName=matched?matched.name:'Unknown';
+        if(item.outcome==='skip'){
+            html+='<tr class="drop-result-row"><td>'+escapeHtml(item.filename)+'</td>'
+                +'<td><span class="drop-result-rule rule-skipped">Skipped</span></td>'
+                +'<td style="color:var(--muted)">'+escapeHtml(item.reason)+'</td></tr>';
+        }else{
+            const cls=ruleName==='Client Match'?'rule-client':ruleName==='Regex Rules'?'rule-regex':'rule-extension';
+            html+='<tr class="drop-result-row"><td>'+escapeHtml(item.filename)+'</td>'
+                +'<td><span class="drop-result-rule '+cls+'">'+escapeHtml(ruleName)+'</span></td>'
+                +'<td>'+escapeHtml(item.destination||'')+'</td></tr>';
+        }
+    });
+    html+='</tbody></table>';
+    dr.innerHTML=html;
+});
 </script>
 </body>
 </html>"""

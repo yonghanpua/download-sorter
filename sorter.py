@@ -86,6 +86,52 @@ def resolve_duplicate(dest: Path) -> Path:
         counter += 1
 
 
+def dry_run(filename: str, rules: dict = None) -> dict | None:
+    """Dry-run: return where a file would be sorted without moving it."""
+    if rules is None:
+        rules = {"ignore_list": True, "client_match": True,
+                 "regex_rules": True, "extension_categories": True}
+    path = Path(filename)
+    if is_temp_file(path):
+        return {"skipped": True, "reason": "Temp file"}
+    if path.name.startswith("."):
+        return {"skipped": True, "reason": "Dot file"}
+    if rules.get("ignore_list", True) and is_ignored(path):
+        return {"skipped": True, "reason": "Ignore list"}
+
+    if rules.get("client_match", True):
+        client = get_client(path)
+    else:
+        client = None
+
+    if client:
+        project = get_client_project(path, client)
+        subcategory = get_client_subcategory(path)
+        dest_parts = [client]
+        if project:
+            dest_parts.append(project)
+        if subcategory:
+            dest_parts.append(subcategory)
+        return {"category": client, "rule": "Client Match",
+                "dest": "/".join(dest_parts), "skipped": False}
+
+    if rules.get("regex_rules", True):
+        regex_cat = get_regex_category(path)
+    else:
+        regex_cat = None
+    if regex_cat:
+        return {"category": regex_cat, "rule": "Regex Rule",
+                "dest": regex_cat, "skipped": False}
+
+    if not rules.get("extension_categories", True):
+        return {"skipped": True, "reason": "Extension categories disabled"}
+    cat = get_category(path)
+    if cat is None:
+        return {"skipped": True, "reason": "Unknown extension"}
+    return {"category": cat, "rule": "Extension",
+            "dest": cat, "skipped": False}
+
+
 def sort_file(path: Path, base: Path = None, rules: dict = None) -> Path | None:
     if base is None:
         base = config.DOWNLOADS_FOLDER
