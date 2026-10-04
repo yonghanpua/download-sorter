@@ -4,7 +4,7 @@ A Python utility that automatically organizes your Downloads folder by sorting f
 
 ## Features
 
-- **Multi-folder watching** — watch Downloads, Desktop, or any folder with per-folder rule toggles (ignore list, client match, regex, extension categories)
+- **Multi-folder watching** — watch Downloads, Desktop, or any folder with per-folder rule toggles and optional output destination (sort into a different folder)
 - **Real-time sorting** — watches your folders and moves files as they arrive
 - **Batch sweep** — one-command cleanup of all existing files, with configurable cron schedule for automatic sweeps
 - **Smart download handling** — ignores incomplete downloads (`.crdownload`, `.part`, `.tmp`) until finished; skips files open by another process
@@ -133,7 +133,7 @@ Opens a dashboard at `http://localhost:5000` with:
   - Sticky action bar with Export/Import on the left, unsaved-changes badge + Save + Reset to Defaults on the right
   - Dirty-state tracking with unsaved-changes indicator and page-leave warning
   - Reset confirmation modal listing what will be erased, with backup-first option
-  - Watched folders management — add/remove folders, toggle per-folder sorting rules
+  - Watched folders management — add/remove folders, toggle per-folder sorting rules, set output destination
   - Changes are stored in SQLite and applied at runtime — no restart needed
 
 ### Migrate existing logs
@@ -151,6 +151,10 @@ This imports move and sweep events from `logs/` into the database (runs once —
 ```bash
 # Sort a different folder
 .venv\Scripts\python main.py sweep --folder "D:\MyFolder"
+
+# Sort files from Downloads into a separate destination
+.venv\Scripts\python main.py sweep --output "D:\Sorted"
+.venv\Scripts\python main.py watch --output "D:\Sorted"
 
 # Change log directory
 .venv\Scripts\python main.py watch --log-dir "C:\Logs\fileSorter"
@@ -417,7 +421,7 @@ fileSorter/
 ├── tray.py          # System tray icon with watcher, dashboard, and controls
 ├── notify.py        # Windows toast notifications
 ├── dashboard.py     # Flask web dashboard with Chart.js + settings
-├── test_sorter.py   # pytest test suite (81 tests)
+├── test_sorter.py   # pytest test suite (82 tests)
 ├── setup.ps1        # Windows Task Scheduler registration
 └── requirements.txt # Dependencies: watchdog, pytest, flask, winotify, pystray, Pillow
 ```

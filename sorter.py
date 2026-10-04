@@ -108,6 +108,7 @@ def sort_file(path: Path, base: Path = None, rules: dict = None) -> Path | None:
         client = get_client(path)
     else:
         client = None
+    rule = ""
     if client:
         project = get_client_project(path, client)
         subcategory = get_client_subcategory(path)
@@ -119,6 +120,7 @@ def sort_file(path: Path, base: Path = None, rules: dict = None) -> Path | None:
         else:
             dest_dir = client_dir
         category = client
+        rule = "Client Match"
     else:
         if rules.get("regex_rules", True):
             regex_cat = get_regex_category(path)
@@ -127,6 +129,7 @@ def sort_file(path: Path, base: Path = None, rules: dict = None) -> Path | None:
         if regex_cat:
             dest_dir = base / regex_cat
             category = regex_cat
+            rule = "Regex Rule"
         else:
             if not rules.get("extension_categories", True):
                 return None
@@ -135,6 +138,7 @@ def sort_file(path: Path, base: Path = None, rules: dict = None) -> Path | None:
                 return None
             dest_dir = base / cat
             category = cat
+            rule = "Extension"
 
     dest_dir.mkdir(parents=True, exist_ok=True)
 
@@ -145,7 +149,7 @@ def sort_file(path: Path, base: Path = None, rules: dict = None) -> Path | None:
         log.warning("Skipped %s: %s", path.name, e)
         return None
 
-    db.record_move(path, dest, category)
+    db.record_move(path, dest, category, rule)
     log.info("Moved: %s -> %s", path.name, dest.relative_to(base))
     return dest
 
@@ -208,13 +212,15 @@ def undo_selected(move_ids: list[int]) -> int:
     return undone
 
 
-def sweep(base: Path = None) -> int:
+def sweep(base: Path = None, output: Path = None) -> int:
     if base is None:
         base = config.DOWNLOADS_FOLDER
+    if output is None:
+        output = base
     count = 0
     for item in list(base.iterdir()):
         if item.is_file():
-            if sort_file(item, base):
+            if sort_file(item, output):
                 count += 1
     if count:
         db.record_sweep(count)

@@ -69,8 +69,9 @@ def _start_watcher():
             if not base.is_dir():
                 log.warning("Watched folder does not exist: %s", base)
                 continue
+            output = Path(wf["output"]) if wf.get("output") else None
             obs = Observer()
-            obs.schedule(DownloadHandler(base, wf.get("rules")), str(base), recursive=False)
+            obs.schedule(DownloadHandler(base, wf.get("rules"), output), str(base), recursive=False)
             obs.start()
             _observers.append(obs)
             log.info("Watcher started — watching %s", base)
@@ -96,9 +97,14 @@ def _toggle_watcher(icon, item):
 
 
 def _do_sweep(icon, item):
-    base = config.DOWNLOADS_FOLDER
-    count = sweep(base)
-    log.info("Sweep complete: %d file(s) sorted", count)
+    total = 0
+    for wf in config.WATCHED_FOLDERS:
+        if not wf.get("enabled", True):
+            continue
+        base = Path(wf["path"])
+        output = Path(wf["output"]) if wf.get("output") else base
+        total += sweep(base, output)
+    log.info("Sweep complete: %d file(s) sorted", total)
 
 
 def _open_dashboard(icon, item):
@@ -132,9 +138,14 @@ def _cron_sweep_loop():
         if _cron_stop.is_set():
             break
         config.load_overrides()
-        base = config.DOWNLOADS_FOLDER
-        count = sweep(base)
-        log.info("Scheduled sweep complete: %d file(s) sorted", count)
+        total = 0
+        for wf in config.WATCHED_FOLDERS:
+            if not wf.get("enabled", True):
+                continue
+            base = Path(wf["path"])
+            output = Path(wf["output"]) if wf.get("output") else base
+            total += sweep(base, output)
+        log.info("Scheduled sweep complete: %d file(s) sorted", total)
 
 
 def _start_cron():

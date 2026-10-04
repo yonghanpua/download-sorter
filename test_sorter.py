@@ -441,6 +441,20 @@ class TestSweep:
         stats = db.get_stats()
         assert stats["total_sweeps"] == 1
 
+    def test_sweep_with_output_destination(self, tmp_path):
+        source = tmp_path / "watch"
+        dest = tmp_path / "sorted"
+        source.mkdir()
+        dest.mkdir()
+        (source / "photo.jpg").write_text("img")
+        (source / "report.pdf").write_text("doc")
+        count = sweep(source, dest)
+        assert count == 2
+        assert (dest / "Images" / "Photos" / "photo.jpg").exists()
+        assert (dest / "Documents" / "PDFs" / "report.pdf").exists()
+        assert not (source / "photo.jpg").exists()
+        assert not (source / "report.pdf").exists()
+
 
 # --- undo ---
 

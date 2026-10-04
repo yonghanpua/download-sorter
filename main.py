@@ -72,6 +72,12 @@ def main():
         help="Directory for daily log files (default: ./logs)",
     )
     parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Output destination folder (default: same as watched folder)",
+    )
+    parser.add_argument(
         "--count",
         type=int,
         default=1,
@@ -110,7 +116,8 @@ def main():
             sys.exit(1)
         from sorter import sweep
 
-        count = sweep(args.folder)
+        output = args.output or args.folder
+        count = sweep(args.folder, output)
         log.info("Sweep complete: %d file(s) sorted", count)
     elif args.mode == "tray":
         from tray import run as tray_run
@@ -122,7 +129,7 @@ def main():
             sys.exit(1)
         from watcher import watch
 
-        watch(args.folder)
+        watch(args.folder, args.output)
 
 
 if __name__ == "__main__":

@@ -13,10 +13,11 @@ log = logging.getLogger("fileSorter")
 
 
 class DownloadHandler(FileSystemEventHandler):
-    def __init__(self, base: Path = None, rules: dict = None):
+    def __init__(self, base: Path = None, rules: dict = None, output: Path = None):
         if base is None:
             base = config.DOWNLOADS_FOLDER
         self._base = base
+        self._output = output or base
         self._rules = rules
         self._timers: dict[str, threading.Timer] = {}
         self._lock = threading.Lock()
@@ -35,10 +36,10 @@ class DownloadHandler(FileSystemEventHandler):
         with self._lock:
             self._timers.pop(str(path), None)
         if path.exists() and not is_temp_file(path):
-            dest = sort_file(path, self._base, self._rules)
+            dest = sort_file(path, self._output, self._rules)
             if dest:
                 try:
-                    category = dest.relative_to(self._base).parts[0]
+                    category = dest.relative_to(self._output).parts[0]
                 except (ValueError, IndexError):
                     category = dest.parent.name
                 notify.file_sorted(path.name, category)
@@ -56,11 +57,11 @@ class DownloadHandler(FileSystemEventHandler):
             self._schedule(dest)
 
 
-def watch(base: Path = None):
+def watch(base: Path = None, output: Path = None):
     if base is None:
         base = config.DOWNLOADS_FOLDER
     observer = Observer()
-    observer.schedule(DownloadHandler(base), str(base), recursive=False)
+    observer.schedule(DownloadHandler(base, output=output), str(base), recursive=False)
     observer.start()
     log.info("Watching %s for new files...", base)
     try:

@@ -127,7 +127,7 @@ th {
     padding: 6px 10px; border-bottom: 2px solid var(--border);
     position: sticky; top: 0; background: var(--card); z-index: 1;
 }
-td { padding: 6px 10px; border-bottom: 1px solid var(--border); }
+td { padding: 6px 10px; border-bottom: 1px solid var(--border); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 tr:hover { background: var(--bg); }
 .badge {
     display: inline-block; padding: 2px 8px; border-radius: 10px;
@@ -568,7 +568,7 @@ input[type="checkbox"] { cursor: pointer; accent-color: var(--primary); }
     </div>
     <div class="history-table-wrap">
     <table>
-        <thead><tr><th style="width:30px"></th><th style="width:140px">Time</th><th>File</th><th>Moved To</th><th style="width:60px">Status</th></tr></thead>
+        <thead><tr><th style="width:30px"></th><th style="width:140px">Time</th><th>File</th><th>Moved To</th><th style="width:100px">Rule</th><th style="width:60px">Status</th></tr></thead>
         <tbody id="historyBody"></tbody>
     </table>
     </div>
@@ -790,11 +790,13 @@ function renderHistory(){
     const tbody=document.getElementById('historyBody');
     tbody.innerHTML=filtered.map(item=>{
         const gone=!item.exists;
+        const rule=item.rule||'';
         return '<tr class="'+(gone?'row-gone':'')+'"><td><input type="checkbox" class="row-cb" data-id="'+item.id+'"'
             +(gone?' disabled title="File no longer exists"':'')+' onchange="updateUndoBar()"></td>'
             +'<td>'+escapeHtml(item.timestamp)+'</td>'
-            +'<td title="'+escapeHtml(item.file)+'">'+escapeHtml(truncate(item.file,35))+'</td>'
-            +'<td title="'+escapeHtml(item.dest_display)+'">'+escapeHtml(truncate(item.dest_display,35))+'</td>'
+            +'<td title="'+escapeHtml(item.file)+'">'+escapeHtml(item.file)+'</td>'
+            +'<td title="'+escapeHtml(item.dest_display)+'">'+escapeHtml(item.dest_display)+'</td>'
+            +'<td>'+escapeHtml(rule)+'</td>'
             +'<td>'+(gone?'<span style="color:var(--danger);font-size:11px">Missing</span>':'<span style="color:var(--success);font-size:11px">Exists</span>')+'</td></tr>';
     }).join('');
     updateUndoBar();
@@ -1024,6 +1026,9 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
 .wf-header .wf-path { flex: 1; font-size: 13px; font-weight: 600; word-break: break-all; }
 .wf-toggle { display: flex; align-items: center; gap: 6px; }
 .wf-toggle label { font-size: 11px; color: var(--muted); cursor: pointer; }
+.wf-output { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.wf-output label { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.wf-output input[type="text"] { flex: 1; font-size: 12px; padding: 4px 8px; background: #000 !important; color: var(--text) !important; border: 1px solid var(--border) !important; border-radius: 6px; }
 .wf-rules { display: flex; flex-wrap: wrap; gap: 8px; }
 .wf-rule {
     display: flex; align-items: center; gap: 5px; padding: 4px 10px;
@@ -2137,9 +2142,9 @@ function renderWatchedFolders() {
         card.className = 'wf-card';
         const ruleItems = [
             {key: 'ignore_list', label: 'Ignore List', step: 3},
-            {key: 'client_match', label: 'Client Match', step: 4},
-            {key: 'regex_rules', label: 'Regex Rules', step: 5},
-            {key: 'extension_categories', label: 'Extension Categories', step: 6},
+            {key: 'client_match', label: 'Client Match', step: 5},
+            {key: 'regex_rules', label: 'Regex Rules', step: 6},
+            {key: 'extension_categories', label: 'Extension Categories', step: 7},
         ];
         let rulesHtml = '';
         ruleItems.forEach(r => {
@@ -2150,12 +2155,16 @@ function renderWatchedFolders() {
                 + '<label for="wf'+idx+'_'+r.key+'">'+r.label+'</label></div>';
         });
         const enabled = wf.enabled !== false;
+        const outputVal = wf.output || '';
         card.innerHTML = '<div class="wf-header">'
             + '<div class="wf-toggle"><input type="checkbox" id="wfEn'+idx+'"'+(enabled?' checked':'')
             + ' onchange="toggleWfEnabled('+idx+',this.checked)"><label for="wfEn'+idx+'">'+(enabled?'Active':'Paused')+'</label></div>'
             + '<span class="wf-path">' + escapeHtml(wf.path) + '</span>'
             + '<button class="btn btn-sm btn-danger" onclick="removeWatchedFolder('+idx+')" style="padding:3px 8px">&times;</button>'
             + '</div>'
+            + '<div class="wf-output"><label for="wfOut'+idx+'">Output to:</label>'
+            + '<input type="text" id="wfOut'+idx+'" value="'+escapeHtml(outputVal)+'" placeholder="Same as watched folder"'
+            + ' onchange="updateWfOutput('+idx+',this.value)"></div>'
             + '<div class="wf-rules">' + rulesHtml + '</div>';
         c.appendChild(card);
     });
@@ -2173,13 +2182,17 @@ function toggleWfRule(idx, key, val) {
     el.classList.toggle('disabled', !val);
 }
 
+function updateWfOutput(idx, val) {
+    S.watched_folders[idx].output = val.trim();
+}
+
 function addWatchedFolder() {
     const input = document.getElementById('newWatchFolder');
     const path = input.value.trim();
     if (!path) return;
     if (!S.watched_folders) S.watched_folders = [];
     S.watched_folders.push({
-        path: path, enabled: true,
+        path: path, output: '', enabled: true,
         rules: {ignore_list: true, client_match: true, regex_rules: true, extension_categories: true}
     });
     renderWatchedFolders();

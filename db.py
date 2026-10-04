@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS moves (
     src       TEXT    NOT NULL,
     dest      TEXT    NOT NULL,
     category  TEXT    NOT NULL,
+    rule      TEXT    NOT NULL DEFAULT '',
     undone    INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS sweeps (
@@ -41,14 +42,17 @@ def _connect() -> sqlite3.Connection:
 def init_db():
     with _connect() as conn:
         conn.executescript(SCHEMA)
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(moves)").fetchall()]
+        if "rule" not in cols:
+            conn.execute("ALTER TABLE moves ADD COLUMN rule TEXT NOT NULL DEFAULT ''")
 
 
-def record_move(src: Path, dest: Path, category: str) -> int:
+def record_move(src: Path, dest: Path, category: str, rule: str = "") -> int:
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     with _connect() as conn:
         cur = conn.execute(
-            "INSERT INTO moves (timestamp, src, dest, category) VALUES (?, ?, ?, ?)",
-            (ts, str(src), str(dest), category),
+            "INSERT INTO moves (timestamp, src, dest, category, rule) VALUES (?, ?, ?, ?, ?)",
+            (ts, str(src), str(dest), category, rule),
         )
         return cur.lastrowid
 
@@ -197,7 +201,7 @@ def get_history(date_filter: str | None = None, page: int = 1,
         ).fetchone()[0]
         offset = (page - 1) * per_page
         rows = conn.execute(
-            f"SELECT id, timestamp, src, dest, category, undone "
+            f"SELECT id, timestamp, src, dest, category, rule, undone "
             f"FROM moves WHERE undone = 0 {dc} ORDER BY id DESC "
             f"LIMIT ? OFFSET ?", dp + [per_page, offset]
         ).fetchall()

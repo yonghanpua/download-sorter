@@ -10,6 +10,7 @@ SWEEP_CRON = "0 2 * * *"
 WATCHED_FOLDERS: list[dict] = [
     {
         "path": str(Path.home() / "Downloads"),
+        "output": "",
         "enabled": True,
         "rules": {
             "ignore_list": True,
