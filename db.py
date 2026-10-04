@@ -29,6 +29,10 @@ CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS profiles (
+    name     TEXT PRIMARY KEY,
+    settings TEXT NOT NULL
+);
 """
 
 
@@ -45,6 +49,10 @@ def init_db():
         cols = [r[1] for r in conn.execute("PRAGMA table_info(moves)").fetchall()]
         if "rule" not in cols:
             conn.execute("ALTER TABLE moves ADD COLUMN rule TEXT NOT NULL DEFAULT ''")
+        tables = [r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
+        if "profiles" not in tables:
+            conn.execute("CREATE TABLE profiles (name TEXT PRIMARY KEY, settings TEXT NOT NULL)")
 
 
 def record_move(src: Path, dest: Path, category: str, rule: str = "") -> int:
@@ -239,6 +247,47 @@ def get_all_settings() -> dict:
     with _connect() as conn:
         rows = conn.execute("SELECT key, value FROM settings").fetchall()
         return {r[0]: json.loads(r[1]) for r in rows}
+
+
+def list_profiles() -> list[str]:
+    with _connect() as conn:
+        return [r[0] for r in conn.execute(
+            "SELECT name FROM profiles ORDER BY name").fetchall()]
+
+
+def get_profile(name: str) -> dict | None:
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT settings FROM profiles WHERE name = ?", (name,)
+        ).fetchone()
+        return json.loads(row[0]) if row else None
+
+
+def save_profile(name: str, settings: dict):
+    with _connect() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO profiles (name, settings) VALUES (?, ?)",
+            (name, json.dumps(settings)),
+        )
+
+
+def delete_profile(name: str):
+    with _connect() as conn:
+        conn.execute("DELETE FROM profiles WHERE name = ?", (name,))
+
+
+def rename_profile(old_name: str, new_name: str) -> bool:
+    with _connect() as conn:
+        existing = conn.execute(
+            "SELECT 1 FROM profiles WHERE name = ?", (new_name,)
+        ).fetchone()
+        if existing:
+            return False
+        conn.execute(
+            "UPDATE profiles SET name = ? WHERE name = ?",
+            (new_name, old_name),
+        )
+        return True
 
 
 def migrate_from_logs(log_dir: Path, downloads_folder: Path) -> dict:

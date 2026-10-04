@@ -15,6 +15,7 @@ A Python utility that automatically organizes your Downloads folder by sorting f
 - **Undo** — reverse the last move, last N moves, cherry-pick specific files, or batch undo by time range
 - **SQLite history** — all moves tracked in a local database with full audit trail
 - **Web dashboard** — live stats, charts, date filtering, watcher control, drag-and-drop rule testing, and selective undo
+- **Multi-user profiles** — create separate profiles with different sorting rules for shared machines; switch instantly from the settings page
 - **Browser settings** — edit all configuration from the dashboard with dirty-state tracking, unsaved-changes warning, import/export with confirmation, and safe reset with backup option
 - **System tray icon** — pystray-based tray icon with status, Pause/Resume Watcher, Sweep Now, Open Dashboard, and Quit
 - **Desktop notifications** — Windows toast notifications when files are sorted (toggle on/off in settings)
@@ -136,6 +137,7 @@ Opens a dashboard at `http://localhost:5000` with:
   - Dirty-state tracking with unsaved-changes indicator and page-leave warning
   - Reset confirmation modal listing what will be erased, with backup-first option
   - Watched folders management — add/remove folders, toggle per-folder sorting rules, set output destination
+  - Profile switcher — create, rename, switch, and delete profiles with separate rules for each user
   - Changes are stored in SQLite and applied at runtime — no restart needed
 
 ### Migrate existing logs
@@ -423,7 +425,7 @@ fileSorter/
 ├── tray.py          # System tray icon with watcher, dashboard, and controls
 ├── notify.py        # Windows toast notifications
 ├── dashboard.py     # Flask web dashboard with Chart.js + settings
-├── test_sorter.py   # pytest test suite (93 tests)
+├── test_sorter.py   # pytest test suite (100 tests)
 ├── setup.ps1        # Windows Task Scheduler registration
 └── requirements.txt # Dependencies: watchdog, pytest, flask, winotify, pystray, Pillow
 ```

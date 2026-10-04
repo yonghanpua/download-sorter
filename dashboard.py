@@ -307,13 +307,90 @@ def api_get_settings():
 @app.route("/api/settings", methods=["POST"])
 def api_save_settings():
     data = request.json
-    for key in ("categories", "clients", "client_projects",
-                "client_subcategories", "ignore_list", "regex_rules",
-                "downloads_folder", "debounce_seconds",
-                "notifications_enabled", "sweep_cron", "watched_folders"):
+    setting_keys = ("categories", "clients", "client_projects",
+                    "client_subcategories", "ignore_list", "regex_rules",
+                    "downloads_folder", "debounce_seconds",
+                    "notifications_enabled", "sweep_cron", "watched_folders")
+    for key in setting_keys:
         if key in data:
             db.save_setting(key, data[key])
     config.load_overrides()
+    active = db.get_setting("active_profile") or "Default"
+    profile_data = {k: data[k] for k in setting_keys if k in data}
+    db.save_profile(active, profile_data)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/profiles")
+def api_list_profiles():
+    profiles = db.list_profiles()
+    active = db.get_setting("active_profile") or "Default"
+    return jsonify({"profiles": profiles, "active": active})
+
+
+@app.route("/api/profiles/create", methods=["POST"])
+def api_create_profile():
+    name = (request.json or {}).get("name", "").strip()
+    if not name:
+        return jsonify({"ok": False, "error": "Name required"}), 400
+    existing = db.list_profiles()
+    if name in existing:
+        return jsonify({"ok": False, "error": "Profile already exists"}), 400
+    current_settings = db.get_all_settings()
+    current_settings.pop("active_profile", None)
+    db.save_profile(name, current_settings)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/profiles/switch", methods=["POST"])
+def api_switch_profile():
+    name = (request.json or {}).get("name", "").strip()
+    if not name:
+        return jsonify({"ok": False, "error": "Name required"}), 400
+    active = db.get_setting("active_profile") or "Default"
+    current_settings = db.get_all_settings()
+    current_settings.pop("active_profile", None)
+    db.save_profile(active, current_settings)
+    target = db.get_profile(name)
+    setting_keys = ("categories", "clients", "client_projects",
+                    "client_subcategories", "ignore_list", "regex_rules",
+                    "downloads_folder", "debounce_seconds",
+                    "notifications_enabled", "sweep_cron", "watched_folders")
+    for k in setting_keys:
+        db.delete_setting(k)
+    if target:
+        for k, v in target.items():
+            if k in setting_keys:
+                db.save_setting(k, v)
+    db.save_setting("active_profile", name)
+    config.load_overrides()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/profiles/rename", methods=["POST"])
+def api_rename_profile():
+    data = request.json or {}
+    old = data.get("old", "").strip()
+    new = data.get("new", "").strip()
+    if not old or not new:
+        return jsonify({"ok": False, "error": "Names required"}), 400
+    if not db.rename_profile(old, new):
+        return jsonify({"ok": False, "error": "Target name already exists"}), 400
+    active = db.get_setting("active_profile") or "Default"
+    if active == old:
+        db.save_setting("active_profile", new)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/profiles/delete", methods=["POST"])
+def api_delete_profile():
+    name = (request.json or {}).get("name", "").strip()
+    if not name:
+        return jsonify({"ok": False, "error": "Name required"}), 400
+    active = db.get_setting("active_profile") or "Default"
+    if name == active:
+        return jsonify({"ok": False, "error": "Cannot delete the active profile"}), 400
+    db.delete_profile(name)
     return jsonify({"ok": True})
 
 
@@ -1300,6 +1377,67 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
 .regex-match { color: #86efac; }
 .regex-no-match { color: #fca5a5; }
 
+/* --- User/profile icon dropdown --- */
+.btn-user {
+    width: 28px; height: 28px; border-radius: 50%; padding: 0;
+    background: var(--card); border: 1px solid var(--border); color: var(--muted);
+    font-size: 15px; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: border-color 0.2s, color 0.2s; position: relative;
+}
+.btn-user:hover { border-color: var(--primary); color: var(--primary); }
+.profile-dropdown {
+    display: none; position: absolute; top: 36px; right: 0; z-index: 200;
+    min-width: 180px; background: var(--card); border: 1px solid var(--border);
+    border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.5); padding: 6px 0;
+}
+.profile-dropdown.open { display: block; }
+.profile-dropdown .pd-label {
+    font-size: 10px; font-weight: 600; color: var(--muted); text-transform: uppercase;
+    letter-spacing: .5px; padding: 6px 12px 4px;
+}
+.profile-dropdown .pd-item {
+    display: flex; align-items: center; gap: 8px; padding: 6px 12px;
+    font-size: 12px; color: var(--text); cursor: pointer; border: none;
+    background: none; width: 100%; text-align: left;
+}
+.profile-dropdown .pd-item:hover { background: rgba(255,255,255,.06); }
+.profile-dropdown .pd-item.active { color: var(--primary); font-weight: 600; }
+.profile-dropdown .pd-item .pd-check { width: 14px; text-align: center; font-size: 11px; }
+.profile-dropdown .pd-divider { height: 1px; background: var(--border); margin: 4px 0; }
+.user-wrapper { position: relative; }
+
+/* --- Profiles section on settings page --- */
+.profile-list { display: flex; flex-direction: column; gap: 6px; }
+.profile-row {
+    display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+}
+.profile-row.active-profile { border-color: var(--primary); }
+.profile-row .profile-name { flex: 1; font-size: 13px; color: var(--text); }
+.profile-row .profile-badge {
+    font-size: 10px; color: var(--primary); background: rgba(99,102,241,.15);
+    padding: 2px 8px; border-radius: 10px; font-weight: 600;
+}
+.profile-row .profile-row-actions { display: flex; gap: 4px; }
+.profile-row .btn { font-size: 11px; padding: 3px 8px; }
+.profile-row input[type="text"] {
+    flex: 1; padding: 4px 8px; font-size: 13px;
+    background: #000; color: var(--text); border: 1px solid var(--primary);
+    border-radius: 4px; outline: none;
+}
+.profile-add-row {
+    display: flex; gap: 8px; margin-top: 8px;
+}
+.profile-add-row input[type="text"] {
+    flex: 1; padding: 6px 10px; font-size: 12px;
+    background: #000; color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px;
+}
+.profile-confirm-delete {
+    display: flex; align-items: center; gap: 8px; font-size: 12px; color: #fca5a5;
+}
+
 /* --- Sticky action bar --- */
 .action-bar {
     position: sticky; bottom: 0; z-index: 50;
@@ -1398,7 +1536,20 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
         <h1>Settings</h1>
         <span class="subtitle"><a href="/">Back to Dashboard</a></span>
     </div>
-    <button class="btn-help" onclick="openModal('helpModal')" title="Getting Started" aria-label="Help">?</button>
+    <div style="display:flex;align-items:center;gap:8px">
+        <div class="user-wrapper">
+            <button class="btn-user" onclick="toggleProfileDropdown()" title="Switch Profile" aria-label="Switch Profile">&#9823;</button>
+            <div class="profile-dropdown" id="profileDropdown">
+                <div class="pd-label">Profiles</div>
+                <div id="profileDropdownList"></div>
+                <div class="pd-divider"></div>
+                <button class="pd-item" onclick="document.getElementById('profileSection').scrollIntoView({behavior:'smooth'});closeProfileDropdown()">
+                    <span class="pd-check">&#9881;</span> Manage Profiles
+                </button>
+            </div>
+        </div>
+        <button class="btn-help" onclick="openModal('helpModal')" title="Getting Started" aria-label="Help">?</button>
+    </div>
 </div>
 
 <!-- Sorting Pipeline -->
@@ -1634,6 +1785,16 @@ SETTINGS_TEMPLATE = r"""<!DOCTYPE html>
     <div class="add-row" style="margin-top:10px">
         <input type="text" id="newCatInput" placeholder="Category name (e.g. Documents/Reports or Misc)" onkeydown="if(event.key==='Enter')addCategory()">
         <button class="btn btn-sm btn-primary" onclick="addCategory()">Add</button>
+    </div>
+</div>
+
+<div class="chart-card" id="profileSection">
+    <h3>Profiles</h3>
+    <p style="font-size:12px;color:var(--muted);margin:4px 0 12px">Separate rules for different users on a shared machine. Switching loads that profile's settings.</p>
+    <div class="profile-list" id="profileList"></div>
+    <div class="profile-add-row">
+        <input type="text" id="newProfileInput" placeholder="New profile name" onkeydown="if(event.key==='Enter')createProfile()">
+        <button class="btn btn-sm btn-primary" onclick="createProfile()">Add</button>
     </div>
 </div>
 
@@ -2531,6 +2692,139 @@ document.getElementById('cfgSweepCron').addEventListener('input', function() {
     _cronTimer = setTimeout(updateCronPreview, 400);
 });
 
+let _profileData = { profiles: [], active: 'Default' };
+let _renamingProfile = null;
+let _deletingProfile = null;
+
+async function loadProfiles() {
+    const r = await fetch('/api/profiles');
+    _profileData = await r.json();
+    if (!_profileData.profiles.length) _profileData.profiles = ['Default'];
+    renderProfileDropdown();
+    renderProfileList();
+}
+
+function renderProfileDropdown() {
+    const list = document.getElementById('profileDropdownList');
+    list.innerHTML = '';
+    _profileData.profiles.forEach(name => {
+        const btn = document.createElement('button');
+        btn.className = 'pd-item' + (name === _profileData.active ? ' active' : '');
+        btn.innerHTML = '<span class="pd-check">' + (name === _profileData.active ? '&#10003;' : '') + '</span> ' + name;
+        btn.onclick = () => { closeProfileDropdown(); switchProfile(name); };
+        list.appendChild(btn);
+    });
+}
+
+function renderProfileList() {
+    const container = document.getElementById('profileList');
+    if (!container) return;
+    container.innerHTML = '';
+    _profileData.profiles.forEach(name => {
+        const row = document.createElement('div');
+        row.className = 'profile-row' + (name === _profileData.active ? ' active-profile' : '');
+        if (_renamingProfile === name) {
+            row.innerHTML = '<input type="text" id="renameInput" value="' + name.replace(/"/g,'&quot;') + '" onkeydown="if(event.key===\'Enter\')confirmRename(\'' + name.replace(/'/g,"\\'") + '\')">' +
+                '<button class="btn btn-sm btn-primary" onclick="confirmRename(\'' + name.replace(/'/g,"\\'") + '\')">Save</button>' +
+                '<button class="btn btn-sm btn-secondary" onclick="cancelRename()">Cancel</button>';
+        } else if (_deletingProfile === name) {
+            row.innerHTML = '<div class="profile-confirm-delete"><span>Delete "' + name + '"?</span>' +
+                '<button class="btn btn-sm btn-danger-outline" onclick="confirmDelete(\'' + name.replace(/'/g,"\\'") + '\')">Yes</button>' +
+                '<button class="btn btn-sm btn-secondary" onclick="cancelDelete()">No</button></div>';
+        } else {
+            row.innerHTML = '<span class="profile-name">' + name + '</span>' +
+                (name === _profileData.active ? '<span class="profile-badge">Active</span>' : '') +
+                '<div class="profile-row-actions">' +
+                (name !== _profileData.active ? '<button class="btn btn-sm btn-primary" onclick="switchProfile(\'' + name.replace(/'/g,"\\'") + '\')">Switch</button>' : '') +
+                '<button class="btn btn-sm btn-secondary" onclick="startRename(\'' + name.replace(/'/g,"\\'") + '\')">Rename</button>' +
+                (name !== _profileData.active ? '<button class="btn btn-sm btn-danger-outline" onclick="startDelete(\'' + name.replace(/'/g,"\\'") + '\')">Delete</button>' : '<button class="btn btn-sm btn-danger-outline" disabled style="opacity:.4;cursor:not-allowed">Delete</button>') +
+                '</div>';
+        }
+        container.appendChild(row);
+    });
+}
+
+function toggleProfileDropdown() {
+    document.getElementById('profileDropdown').classList.toggle('open');
+}
+function closeProfileDropdown() {
+    document.getElementById('profileDropdown').classList.remove('open');
+}
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.user-wrapper')) closeProfileDropdown();
+});
+
+async function switchProfile(name) {
+    const r = await fetch('/api/profiles/switch', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name})
+    });
+    const d = await r.json();
+    if (d.ok) {
+        await loadProfiles();
+        await loadSettings();
+        showToast('Switched to profile: ' + name);
+    } else {
+        showToast(d.error || 'Error switching profile', true);
+    }
+}
+
+async function createProfile() {
+    const input = document.getElementById('newProfileInput');
+    const name = input.value.trim();
+    if (!name) return;
+    const r = await fetch('/api/profiles/create', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name})
+    });
+    const d = await r.json();
+    if (d.ok) {
+        input.value = '';
+        await loadProfiles();
+        showToast('Profile created: ' + name);
+    } else {
+        showToast(d.error || 'Error creating profile', true);
+    }
+}
+
+function startRename(name) { _renamingProfile = name; _deletingProfile = null; renderProfileList(); setTimeout(() => { const el = document.getElementById('renameInput'); if (el) { el.focus(); el.select(); } }, 0); }
+function cancelRename() { _renamingProfile = null; renderProfileList(); }
+
+async function confirmRename(oldName) {
+    const newName = document.getElementById('renameInput').value.trim();
+    if (!newName || newName === oldName) { cancelRename(); return; }
+    const r = await fetch('/api/profiles/rename', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({old: oldName, 'new': newName})
+    });
+    const d = await r.json();
+    _renamingProfile = null;
+    if (d.ok) {
+        await loadProfiles();
+        showToast('Profile renamed to: ' + newName);
+    } else {
+        showToast(d.error || 'Error renaming profile', true);
+    }
+}
+
+function startDelete(name) { _deletingProfile = name; _renamingProfile = null; renderProfileList(); }
+function cancelDelete() { _deletingProfile = null; renderProfileList(); }
+
+async function confirmDelete(name) {
+    const r = await fetch('/api/profiles/delete', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name})
+    });
+    const d = await r.json();
+    _deletingProfile = null;
+    if (d.ok) {
+        await loadProfiles();
+        showToast('Profile deleted: ' + name);
+    } else {
+        showToast(d.error || 'Error deleting profile', true);
+    }
+}
+
 async function loadSettings() {
     const r = await fetch('/api/settings');
     S = await r.json();
@@ -2539,14 +2833,15 @@ async function loadSettings() {
     updateDirtyState();
 }
 
+loadProfiles();
 loadSettings();
 
 document.body.addEventListener('input', function(e) {
-    if (e.target.closest('.action-bar') || e.target.closest('.modal-overlay') || e.target.closest('.rule-tester') || e.target.closest('.regex-test-cell')) return;
+    if (e.target.closest('.action-bar') || e.target.closest('.modal-overlay') || e.target.closest('.rule-tester') || e.target.closest('.regex-test-cell') || e.target.closest('#profileSection') || e.target.closest('.profile-dropdown')) return;
     updateDirtyState();
 });
 document.body.addEventListener('change', function(e) {
-    if (e.target.closest('.action-bar') || e.target.closest('.modal-overlay')) return;
+    if (e.target.closest('.action-bar') || e.target.closest('.modal-overlay') || e.target.closest('#profileSection') || e.target.closest('.profile-dropdown')) return;
     updateDirtyState();
 });
 new MutationObserver(function() { updateDirtyState(); }).observe(

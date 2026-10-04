@@ -638,3 +638,39 @@ class TestUndoSelected:
         (tmp_path / "Documents" / "PDFs" / "report.pdf").unlink()
         records = db.get_pending_undos()
         assert undo_selected([records[0]["id"]]) == 0
+
+
+class TestProfiles:
+    def test_create_and_list(self):
+        assert db.list_profiles() == []
+        db.save_profile("Alice", {"categories": {"Docs": [".pdf"]}})
+        assert db.list_profiles() == ["Alice"]
+
+    def test_get_profile(self):
+        db.save_profile("Bob", {"ignore_list": ["*.tmp"]})
+        p = db.get_profile("Bob")
+        assert p == {"ignore_list": ["*.tmp"]}
+
+    def test_get_missing_profile(self):
+        assert db.get_profile("Nobody") is None
+
+    def test_rename_profile(self):
+        db.save_profile("Old", {"x": 1})
+        assert db.rename_profile("Old", "New")
+        assert db.get_profile("New") == {"x": 1}
+        assert db.get_profile("Old") is None
+
+    def test_rename_conflict(self):
+        db.save_profile("A", {"x": 1})
+        db.save_profile("B", {"x": 2})
+        assert not db.rename_profile("A", "B")
+
+    def test_delete_profile(self):
+        db.save_profile("Gone", {"x": 1})
+        db.delete_profile("Gone")
+        assert db.get_profile("Gone") is None
+
+    def test_overwrite_profile(self):
+        db.save_profile("Up", {"v": 1})
+        db.save_profile("Up", {"v": 2})
+        assert db.get_profile("Up") == {"v": 2}
