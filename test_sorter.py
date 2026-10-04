@@ -15,6 +15,7 @@ from sorter import (
     sort_file,
     sweep,
     dry_run,
+    find_duplicates,
     undo,
     undo_selected,
 )
@@ -501,6 +502,42 @@ class TestTestSort:
             "regex_rules": True, "extension_categories": True
         })
         assert result["rule"] == "Extension"
+
+
+# --- find_duplicates ---
+
+class TestFindDuplicates:
+    def test_finds_numbered_copies(self, tmp_path):
+        sub = tmp_path / "Images"
+        sub.mkdir()
+        (sub / "photo.jpg").write_text("original")
+        (sub / "photo (1).jpg").write_text("copy1")
+        (sub / "photo (2).jpg").write_text("copy2")
+        groups = find_duplicates(tmp_path)
+        assert len(groups) == 1
+        assert groups[0]["original"]["name"] == "photo.jpg"
+        assert len(groups[0]["duplicates"]) == 2
+
+    def test_no_duplicates(self, tmp_path):
+        sub = tmp_path / "Documents"
+        sub.mkdir()
+        (sub / "report.pdf").write_text("doc")
+        groups = find_duplicates(tmp_path)
+        assert len(groups) == 0
+
+    def test_copy_without_original(self, tmp_path):
+        sub = tmp_path / "Archives"
+        sub.mkdir()
+        (sub / "data (1).zip").write_text("copy")
+        groups = find_duplicates(tmp_path)
+        assert len(groups) == 1
+        assert groups[0]["original"] is None
+        assert len(groups[0]["duplicates"]) == 1
+
+    def test_ignores_top_level_files(self, tmp_path):
+        (tmp_path / "file (1).txt").write_text("top level")
+        groups = find_duplicates(tmp_path)
+        assert len(groups) == 0
 
 
 # --- undo ---

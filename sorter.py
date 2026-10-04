@@ -86,6 +86,61 @@ def resolve_duplicate(dest: Path) -> Path:
         counter += 1
 
 
+_DUP_RE = re.compile(r"^(.+?) \((\d+)\)(\.[^.]+)?$")
+
+
+def find_duplicates(base: Path = None) -> list[dict]:
+    """Scan sorted subfolders for files with (N) suffixes and group them."""
+    if base is None:
+        base = config.DOWNLOADS_FOLDER
+    groups: dict[str, list[dict]] = {}
+    for dirpath, _, filenames in os.walk(base):
+        dp = Path(dirpath)
+        if dp == base:
+            continue
+        for name in filenames:
+            m = _DUP_RE.match(name)
+            if not m:
+                continue
+            original_stem, _num, ext = m.groups()
+            ext = ext or ""
+            original_name = original_stem + ext
+            key = str(dp / original_name)
+            fp = dp / name
+            try:
+                stat = fp.stat()
+            except OSError:
+                continue
+            if key not in groups:
+                orig_path = dp / original_name
+                orig_info = None
+                if orig_path.exists():
+                    try:
+                        os_ = orig_path.stat()
+                        orig_info = {
+                            "path": str(orig_path),
+                            "name": original_name,
+                            "size": os_.st_size,
+                            "modified": os_.st_mtime,
+                        }
+                    except OSError:
+                        pass
+                groups[key] = {"original": orig_info, "duplicates": []}
+            groups[key]["duplicates"].append({
+                "path": str(fp),
+                "name": name,
+                "size": stat.st_size,
+                "modified": stat.st_mtime,
+            })
+    result = []
+    for key, group in groups.items():
+        group["duplicates"].sort(key=lambda d: d["name"])
+        folder = str(Path(key).parent.relative_to(base))
+        result.append({"key": key, "folder": folder, **group})
+    result.sort(key=lambda g: g["folder"])
+    return result
+
+
 def dry_run(filename: str, rules: dict = None) -> dict | None:
     """Dry-run: return where a file would be sorted without moving it."""
     if rules is None:

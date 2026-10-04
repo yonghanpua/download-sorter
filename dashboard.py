@@ -12,8 +12,9 @@ from flask import Flask, jsonify, render_template_string, request
 import config
 import db
 from main import DailyLogHandler
-from sorter import (sweep, undo, undo_selected, is_temp_file, is_ignored,
-                     get_client, get_regex_category, get_category)
+from sorter import (sweep, undo, undo_selected, find_duplicates,
+                     is_temp_file, is_ignored, get_client, get_regex_category,
+                     get_category)
 
 LOG_DIR = Path(__file__).parent / "logs"
 log = logging.getLogger("fileSorter")
@@ -191,6 +192,45 @@ def api_history():
 def api_sweep():
     count = sweep(config.DOWNLOADS_FOLDER)
     return jsonify({"ok": True, "count": count})
+
+
+@app.route("/api/duplicates")
+def api_duplicates():
+    from datetime import datetime as dt
+    folder = request.args.get("folder")
+    base = Path(folder) if folder else None
+    groups = find_duplicates(base)
+    for g in groups:
+        if g["original"]:
+            g["original"]["modified"] = dt.fromtimestamp(
+                g["original"]["modified"]).strftime("%Y-%m-%d %H:%M")
+        for d in g["duplicates"]:
+            d["modified"] = dt.fromtimestamp(
+                d["modified"]).strftime("%Y-%m-%d %H:%M")
+    return jsonify(groups)
+
+
+@app.route("/api/duplicates/delete", methods=["POST"])
+def api_duplicates_delete():
+    paths = (request.json or {}).get("paths", [])
+    allowed = [Path(wf.get("output") or wf["path"])
+               for wf in config.WATCHED_FOLDERS]
+    deleted = 0
+    errors = []
+    for p in paths:
+        fp = Path(p)
+        if not fp.exists():
+            errors.append(f"{fp.name}: file not found")
+            continue
+        if not any(fp.is_relative_to(a) for a in allowed):
+            errors.append(f"{fp.name}: outside watched folders")
+            continue
+        try:
+            fp.unlink()
+            deleted += 1
+        except OSError as e:
+            errors.append(f"{fp.name}: {e}")
+    return jsonify({"ok": True, "deleted": deleted, "errors": errors})
 
 
 @app.route("/api/undo", methods=["POST"])
@@ -520,6 +560,38 @@ input[type="checkbox"] { cursor: pointer; accent-color: var(--primary); }
 .rule-regex { background: #3b1f5e; color: #c4b5fd; }
 .rule-extension { background: #1a3a2a; color: #86efac; }
 .rule-skipped { background: #3f1f1f; color: #fca5a5; }
+.dup-section { margin-bottom: 20px; }
+.dup-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.dup-header h3 { margin: 0; }
+.dup-actions { display: flex; gap: 8px; align-items: center; }
+.dup-count { font-size: 12px; color: var(--muted); }
+.dup-group {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 14px; margin-bottom: 10px;
+}
+.dup-group-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.dup-group-header .dup-folder {
+    font-size: 11px; padding: 2px 8px; border-radius: 10px;
+    background: #1e293b; color: #93c5fd; font-weight: 600;
+}
+.dup-group-header .dup-original { font-size: 13px; font-weight: 600; flex: 1; word-break: break-all; }
+.dup-file-row {
+    display: flex; align-items: center; gap: 10px; padding: 4px 0;
+    font-size: 12px; border-top: 1px solid var(--border);
+}
+.dup-file-row:first-child { border-top: none; }
+.dup-file-row .dup-name { flex: 1; word-break: break-all; }
+.dup-file-row .dup-size { color: var(--muted); white-space: nowrap; min-width: 70px; text-align: right; }
+.dup-file-row .dup-date { color: var(--muted); white-space: nowrap; min-width: 120px; }
+.dup-file-row.is-original { color: var(--success); }
+.dup-file-row.is-copy { color: var(--warning); }
+.dup-empty { text-align: center; color: var(--muted); padding: 24px; font-size: 13px; }
+.dup-delete-bar {
+    display: none; align-items: center; gap: 10px; padding: 8px 12px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    margin-bottom: 10px; font-size: 12px;
+}
+.dup-delete-bar.visible { display: flex; }
 </style>
 </head>
 <body>
@@ -547,6 +619,25 @@ input[type="checkbox"] { cursor: pointer; accent-color: var(--primary); }
     <h3>Drop files here to test sorting rules</h3>
     <p>Drag files from your desktop to preview which rule matches &mdash; nothing will be moved</p>
     <div class="drop-results" id="dropResults"></div>
+</div>
+
+<div class="chart-card dup-section">
+    <div class="dup-header">
+        <h3>Duplicates</h3>
+        <div class="dup-actions">
+            <select id="dupFolder" style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:#000;color:var(--text);font-size:12px;max-width:250px" onchange="toggleDupCustom()">
+            </select>
+            <input type="text" id="dupCustomFolder" placeholder="Paste folder path..." style="display:none;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:#000;color:var(--text);font-size:12px;width:250px">
+            <span class="dup-count" id="dupCount"></span>
+            <button class="btn btn-sm" style="background:var(--card);color:var(--text)" onclick="scanDuplicates()">Scan</button>
+        </div>
+    </div>
+    <div class="dup-delete-bar" id="dupDeleteBar">
+        <input type="checkbox" id="dupSelectAll" onchange="toggleDupSelectAll()">
+        <span><span id="dupSelectedCount">0</span> selected</span>
+        <button class="btn btn-danger btn-sm" onclick="deleteSelectedDups()">Delete Selected</button>
+    </div>
+    <div id="dupContainer"><p class="dup-empty">Click <strong>Scan</strong> to find duplicate files in sorted folders</p></div>
 </div>
 
 <div class="charts">
@@ -886,6 +977,107 @@ dz.addEventListener('drop',async e=>{
     html+='</tbody></table>';
     dr.innerHTML=html;
 });
+
+let dupData=[];
+function formatSize(b){
+    if(b<1024)return b+' B';
+    if(b<1048576)return (b/1024).toFixed(1)+' KB';
+    return (b/1048576).toFixed(1)+' MB';
+}
+async function loadDupFolders(){
+    const sel=document.getElementById('dupFolder');
+    const r=await fetch('/api/settings');
+    const s=await r.json();
+    const folders=s.watched_folders||[];
+    sel.innerHTML='';
+    folders.forEach(wf=>{
+        const opt=document.createElement('option');
+        const out=wf.output||'';
+        opt.value=out||wf.path;
+        opt.textContent=out||wf.path;
+        opt.title=out||wf.path;
+        sel.appendChild(opt);
+    });
+    const custom=document.createElement('option');
+    custom.value='__custom__';
+    custom.textContent='Custom path…';
+    sel.appendChild(custom);
+}
+function toggleDupCustom(){
+    const sel=document.getElementById('dupFolder');
+    const inp=document.getElementById('dupCustomFolder');
+    inp.style.display=sel.value==='__custom__'?'inline-block':'none';
+}
+loadDupFolders();
+async function scanDuplicates(){
+    const c=document.getElementById('dupContainer');
+    c.innerHTML='<p class="dup-empty">Scanning...</p>';
+    document.getElementById('dupCount').textContent='';
+    document.getElementById('dupDeleteBar').classList.remove('visible');
+    const sel=document.getElementById('dupFolder').value;
+    const folder=sel==='__custom__'?document.getElementById('dupCustomFolder').value.trim():sel;
+    if(!folder){c.innerHTML='<p class="dup-empty">Enter a folder path</p>';return;}
+    const r=await fetch('/api/duplicates?folder='+encodeURIComponent(folder));
+    dupData=await r.json();
+    if(!dupData.length){
+        c.innerHTML='<p class="dup-empty">No duplicates found</p>';
+        document.getElementById('dupCount').textContent='0 groups';
+        return;
+    }
+    let totalDups=dupData.reduce((s,g)=>s+g.duplicates.length,0);
+    document.getElementById('dupCount').textContent=dupData.length+' group'+(dupData.length!==1?'s':'')+', '+totalDups+' duplicate'+(totalDups!==1?'s':'');
+    renderDuplicates();
+}
+function renderDuplicates(){
+    const c=document.getElementById('dupContainer');
+    let html='';
+    dupData.forEach((group,gi)=>{
+        const origName=group.original?group.original.name:group.key.split(/[\\/]/).pop();
+        html+='<div class="dup-group"><div class="dup-group-header">'
+            +'<span class="dup-folder">'+escapeHtml(group.folder)+'</span>'
+            +'<span class="dup-original">'+escapeHtml(origName)+'</span>'
+            +'</div>';
+        if(group.original){
+            html+='<div class="dup-file-row is-original">'
+                +'<span style="width:30px"></span>'
+                +'<span class="dup-name">'+escapeHtml(group.original.name)+' <span style="font-size:10px;color:var(--success)">(original)</span></span>'
+                +'<span class="dup-size">'+formatSize(group.original.size)+'</span>'
+                +'<span class="dup-date">'+escapeHtml(group.original.modified)+'</span>'
+                +'</div>';
+        }
+        group.duplicates.forEach((d,di)=>{
+            const sameSize=group.original&&d.size===group.original.size;
+            html+='<div class="dup-file-row is-copy">'
+                +'<input type="checkbox" class="dup-cb" data-path="'+escapeHtml(d.path)+'" onchange="updateDupBar()">'
+                +'<span class="dup-name">'+escapeHtml(d.name)+'</span>'
+                +'<span class="dup-size"'+(sameSize?' style="color:var(--success)"':'')+'>'+formatSize(d.size)+(sameSize?' &#10003;':'')+'</span>'
+                +'<span class="dup-date">'+escapeHtml(d.modified)+'</span>'
+                +'</div>';
+        });
+        html+='</div>';
+    });
+    c.innerHTML=html;
+}
+function updateDupBar(){
+    const cbs=document.querySelectorAll('.dup-cb:checked');
+    document.getElementById('dupSelectedCount').textContent=cbs.length;
+    document.getElementById('dupDeleteBar').classList.toggle('visible',cbs.length>0);
+}
+function toggleDupSelectAll(){
+    const val=document.getElementById('dupSelectAll').checked;
+    document.querySelectorAll('.dup-cb').forEach(cb=>{cb.checked=val;});
+    updateDupBar();
+}
+async function deleteSelectedDups(){
+    const paths=Array.from(document.querySelectorAll('.dup-cb:checked')).map(cb=>cb.dataset.path);
+    if(!paths.length)return;
+    if(!confirm('Delete '+paths.length+' duplicate file'+(paths.length!==1?'s':'')+'? This cannot be undone.')){return;}
+    const r=await fetch('/api/duplicates/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({paths})});
+    const d=await r.json();
+    showToast(d.deleted+' file'+(d.deleted!==1?'s':'')+' deleted');
+    if(d.errors.length)showToast(d.errors.join('; '),true);
+    scanDuplicates();
+}
 </script>
 </body>
 </html>"""

@@ -113,6 +113,7 @@ Opens a dashboard at `http://localhost:5000` with:
 - Sweep trigger button
 - Undo timeline — visual bar chart of moves over time; click two bars or use date pickers to select a range, then batch undo all moves in that range
 - Drag-and-drop rule tester — drop files from your desktop to preview which rule matches and where they'd go, without moving anything
+- Duplicate scanner — find files with `(1)`, `(2)` suffixes in sorted folders, review side-by-side with originals, and bulk delete
 - Move history table with Rule column and checkboxes for selective undo
 - Search/filter on history table by filename or destination
 - Paginated history with rows-per-page selector (10/25/50/100) and fixed-height table
@@ -422,7 +423,7 @@ fileSorter/
 ├── tray.py          # System tray icon with watcher, dashboard, and controls
 ├── notify.py        # Windows toast notifications
 ├── dashboard.py     # Flask web dashboard with Chart.js + settings
-├── test_sorter.py   # pytest test suite (89 tests)
+├── test_sorter.py   # pytest test suite (93 tests)
 ├── setup.ps1        # Windows Task Scheduler registration
 └── requirements.txt # Dependencies: watchdog, pytest, flask, winotify, pystray, Pillow
 ```
