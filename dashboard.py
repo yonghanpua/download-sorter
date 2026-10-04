@@ -2053,6 +2053,7 @@ async function saveAll() {
         S = data;
         snapshotClean();
         updateDirtyState();
+        renderAll();
         showToast('Settings saved');
     } else {
         showToast('Error saving settings', true);
